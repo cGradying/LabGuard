@@ -66,6 +66,8 @@ PBKDF2_ITERATIONS = 120000
 MAX_ID_PHOTO_BYTES = 4 * 1024 * 1024  # 4 MB
 ADMIN_SESSION_HOURS = 24
 STUDENT_SESSION_DAYS = 7
+RETURN_SESSION_MINUTES = 10
+RETURN_TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 VALID_GRADE_SECTIONS = ("STEM", "HUMSS", "ABM", "FACULTY")
 VALID_STUDENT_STATUSES = ("pending", "approved", "rejected", "suspended")
 
@@ -100,6 +102,7 @@ led_controller = SafetyLEDController()
 _ws_lock = threading.Lock()
 _global_ws_clients: Set[Any] = set()
 _checkout_ws_clients: Dict[str, Set[Any]] = {}
+return_sockets: Dict[str, Set[Any]] = {}
 
 # Lazy/startup DB initialization guard (keyed by resolved DB path)
 _db_init_lock = threading.Lock()
@@ -1061,6 +1064,7 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
         cur.execute("DROP TABLE IF EXISTS equipment")
         cur.execute("DROP TABLE IF EXISTS student_transactions")
         cur.execute("DROP TABLE IF EXISTS checkout_sessions")
+        cur.execute("DROP TABLE IF EXISTS return_sessions")
         cur.execute("DROP TABLE IF EXISTS safety_status")
         cur.execute("DROP TABLE IF EXISTS student_accounts")
         cur.execute("DROP TABLE IF EXISTS student_sessions")
@@ -1106,6 +1110,21 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS return_sessions (
+            session_token TEXT PRIMARY KEY,
+            transaction_id INTEGER NOT NULL,
+            qr_data_url TEXT NOT NULL,
+            mobile_url TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            completed_transaction_json TEXT
+        )
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS student_transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             transaction_code TEXT NOT NULL,
@@ -1124,12 +1143,13 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
             time_out TEXT,
             return_condition TEXT,
             return_notes TEXT,
+            returned_verified_by TEXT,
             status TEXT NOT NULL
         )
         """
     )
 
-    # Auto-migrate existing SQLite databases created before SPEC-02
+    # Auto-migrate existing SQLite databases created before SPEC-02 / SPEC-03
     eq_cols = {r["name"] for r in cur.execute("PRAGMA table_info(equipment)").fetchall()}
     if "usage_instructions_json" not in eq_cols:
         cur.execute(
@@ -1141,6 +1161,8 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
     }
     if "student_account_id" not in tx_cols:
         cur.execute("ALTER TABLE student_transactions ADD COLUMN student_account_id INTEGER")
+    if "returned_verified_by" not in tx_cols:
+        cur.execute("ALTER TABLE student_transactions ADD COLUMN returned_verified_by TEXT")
 
     cur.execute(
         """
@@ -1451,6 +1473,26 @@ def broadcast_checkout_update(token: str, payload: Dict[str, Any]) -> None:
                     _checkout_ws_clients.pop(token, None)
 
 
+def broadcast_return_update(token: str, payload: Dict[str, Any]) -> None:
+    message = json.dumps(payload)
+    with _ws_lock:
+        clients = list(return_sockets.get(token, ()))
+    dead = []
+    for ws in clients:
+        try:
+            ws.send(message)
+        except Exception:
+            dead.append(ws)
+    if dead:
+        with _ws_lock:
+            bucket = return_sockets.get(token)
+            if bucket is not None:
+                for ws in dead:
+                    bucket.discard(ws)
+                if not bucket:
+                    return_sockets.pop(token, None)
+
+
 def _handle_global_ws(ws: Any) -> None:
     ensure_db_initialized()
     with _ws_lock:
@@ -1495,6 +1537,27 @@ def _handle_checkout_ws(ws: Any, token: str) -> None:
                     _checkout_ws_clients.pop(token, None)
 
 
+def _handle_return_ws(ws: Any, token: str) -> None:
+    ensure_db_initialized()
+    token = token.strip()
+    with _ws_lock:
+        return_sockets.setdefault(token, set()).add(ws)
+    try:
+        while True:
+            data = ws.receive()
+            if data is None:
+                break
+    except Exception:
+        pass
+    finally:
+        with _ws_lock:
+            bucket = return_sockets.get(token)
+            if bucket is not None:
+                bucket.discard(ws)
+                if not bucket:
+                    return_sockets.pop(token, None)
+
+
 if sock is not None:
     @sock.route("/ws/kiosk")
     def ws_kiosk(ws):
@@ -1507,6 +1570,10 @@ if sock is not None:
     @sock.route("/ws/checkout/<token>")
     def ws_checkout(ws, token: str):
         _handle_checkout_ws(ws, token)
+
+    @sock.route("/ws/return/<token>")
+    def ws_return(ws, token: str):
+        _handle_return_ws(ws, token)
 else:
     logger.warning(
         "flask-sock is not installed; WebSocket endpoints (/ws/*) disabled (clients will use polling fallback)."
@@ -1527,7 +1594,7 @@ def make_qr_data_url(url_text: str) -> str:
 
 
 # ==============================================================================
-# 3 SEPARATE HTML TEMPLATE ROUTES + STATIC ASSETS
+# SEPARATE HTML TEMPLATE ROUTES + STATIC ASSETS
 # ==============================================================================
 @app.route("/")
 @app.route("/kiosk")
@@ -1542,6 +1609,13 @@ def kiosk_page():
 def student_form_page(token: str = ""):
     """Serves File 2: QR-Redirected Student Information Form (templates/student_form.html)."""
     return render_template("student_form.html", session_token=token)
+
+
+@app.route("/student/return/<token>")
+@app.route("/student_return.html")
+def student_return_page(token: str = ""):
+    """Serves Verified Equipment Return page (templates/student_return.html)."""
+    return render_template("student_return.html", session_token=token)
 
 
 @app.route("/student/register")
@@ -1661,6 +1735,80 @@ def _enrich_items_with_instructions(
     return enriched
 
 
+def mask_student_name(full_name: Optional[str]) -> str:
+    """Privacy-mask student full name (first & last char of each word, '*' in middle)."""
+    cleaned = str(full_name or "").strip()
+    if not cleaned:
+        return "Student"
+    parts = cleaned.split()
+    masked_parts = []
+    for p in parts:
+        if len(p) <= 2:
+            masked_parts.append(p)
+        else:
+            masked_parts.append(p[0] + ("*" * (len(p) - 2)) + p[-1])
+    return " ".join(masked_parts)
+
+
+def mask_student_id(student_id: Optional[str]) -> str:
+    """Privacy-mask student ID/LRN (mask all characters except last 4)."""
+    cleaned = str(student_id or "").strip()
+    if not cleaned:
+        return "********"
+    if len(cleaned) <= 4:
+        return "****"
+    return ("*" * (len(cleaned) - 4)) + cleaned[-4:]
+
+
+def is_transaction_owner(tx: Dict[str, Any], student_row: sqlite3.Row) -> bool:
+    """Strict borrower ownership check matching account ID or student ID / LRN."""
+    tx_acc_id = tx.get("student_account_id")
+    if tx_acc_id is not None:
+        try:
+            if int(tx_acc_id) == int(student_row["id"]):
+                return True
+        except (TypeError, ValueError):
+            pass
+    tx_lrn = str(tx.get("student_id_lrn") or "").strip().upper()
+    stu_lrn = str(student_row["student_id_lrn"] or "").strip().upper()
+    return bool(tx_lrn) and tx_lrn == stu_lrn
+
+
+def _build_transaction_preview(tx: Dict[str, Any]) -> Dict[str, Any]:
+    """Return privacy-masked transaction preview safe before borrower login."""
+    return {
+        "id": tx["id"],
+        "transaction_code": tx["transaction_code"],
+        "masked_student_name": mask_student_name(tx.get("student_name")),
+        "masked_student_id": mask_student_id(tx.get("student_id_lrn")),
+        "grade_section": tx.get("grade_section", ""),
+        "time_in": tx.get("time_in"),
+        "expected_return": tx.get("expected_return"),
+        "items": tx.get("items") or [],
+        "status": tx.get("status", ""),
+    }
+
+
+def _generate_return_session_token(conn: sqlite3.Connection) -> str:
+    for _ in range(16):
+        token = "RET-" + "".join(secrets.choice(RETURN_TOKEN_ALPHABET) for _ in range(8))
+        exists = conn.execute(
+            "SELECT 1 FROM return_sessions WHERE session_token = ?", (token,)
+        ).fetchone()
+        if not exists:
+            return token
+    return f"RET-{secrets.token_hex(4).upper()}"
+
+
+def _normalize_return_condition(raw_condition: Any) -> str:
+    cleaned = str(raw_condition or "Good").strip().lower()
+    if cleaned == "damaged":
+        return "Damaged"
+    if cleaned == "missing":
+        return "Missing"
+    return "Good"
+
+
 def serialize_transaction(
     row: sqlite3.Row,
     *,
@@ -1692,6 +1840,9 @@ def serialize_transaction(
         "time_out": row["time_out"],
         "return_condition": row["return_condition"],
         "return_notes": row["return_notes"] or "",
+        "returned_verified_by": (
+            row["returned_verified_by"] if "returned_verified_by" in keys else None
+        ),
         "status": row["status"],
     }
 
@@ -2100,14 +2251,445 @@ def api_complete_checkout_session(token: str):
     }), 201
 
 
-@app.route("/api/kiosk/return", methods=["POST"])
-def api_return_equipment():
+def _execute_transaction_return(
+    conn: sqlite3.Connection,
+    row: sqlite3.Row,
+    condition: str,
+    notes: str,
+    verified_by: str,
+) -> Tuple[Dict[str, Any], Dict[str, Any], str]:
+    """Execute stock restoration, condition update, LED safety escalation, and audit logging."""
+    resolved_tx_id = row["id"]
+    now_iso = datetime.now(timezone.utc).isoformat()
+    final_notes = notes or f"Returned in {condition} condition."
+    items = json.loads(row["items_json"] or "[]")
+
+    if condition != "Missing":
+        for item in items:
+            conn.execute(
+                "UPDATE equipment SET available_qty = MIN(total_qty, available_qty + ?) WHERE id = ?",
+                (int(item["quantity"]), int(item["equipment_id"])),
+            )
+            if condition == "Damaged":
+                conn.execute(
+                    "UPDATE equipment SET condition = 'Damaged' WHERE id = ?",
+                    (int(item["equipment_id"]),),
+                )
+
+    conn.execute(
+        """
+        UPDATE student_transactions
+        SET time_out = ?, return_condition = ?, return_notes = ?,
+            returned_verified_by = ?, status = 'Returned / Logged Out'
+        WHERE id = ?
+        """,
+        (now_iso, condition, final_notes, verified_by, resolved_tx_id),
+    )
+
+    prev_safety_row = conn.execute("SELECT level FROM safety_status WHERE id = 1").fetchone()
+    prev_level = prev_safety_row["level"] if prev_safety_row else "SAFE"
+
+    if condition in ("Damaged", "Missing"):
+        items_summary = ", ".join(
+            f"{it.get('quantity', 1)}x {it.get('name', 'Item')}" for it in items
+        )
+        compartments = ", ".join(
+            sorted({it.get("storage_compartment", "") for it in items if it.get("storage_compartment")})
+        )
+        msg = (
+            f"Damaged apparatus returned ({row['transaction_code']}: {items_summary}). Inspect {compartments or 'compartment'} before next use."
+            if condition == "Damaged"
+            else f"Missing apparatus reported on return ({row['transaction_code']}: {items_summary}). Lab Coordinator verification required for {compartments or 'compartment'}."
+        )
+        conn.execute(
+            """
+            UPDATE safety_status
+            SET level = CASE WHEN level = 'UNSAFE' THEN 'UNSAFE' ELSE 'CAUTION' END,
+                headline = CASE WHEN level = 'UNSAFE' THEN headline ELSE ? END,
+                message = ?,
+                updated_by = ?,
+                updated_at = ?
+            WHERE id = 1
+            """,
+            (
+                SAFETY_PRESETS["CAUTION"]["headline"],
+                msg,
+                f"LabGuard+ Return Monitor ({condition})",
+                now_iso,
+            ),
+        )
+
+    eq_by_id, eq_by_qr = _build_equipment_lookup(conn)
+    updated = conn.execute(
+        "SELECT * FROM student_transactions WHERE id = ?", (resolved_tx_id,)
+    ).fetchone()
+    safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+    tx_dict = serialize_transaction(updated, eq_by_id=eq_by_id, eq_by_qr=eq_by_qr)
+    safety_dict = serialize_safety_status(safety_row)
+    return tx_dict, safety_dict, prev_level
+
+
+@app.route("/api/kiosk/return-session", methods=["POST"])
+def api_create_return_session():
     data = request.get_json(silent=True) or {}
-    tx_id = int(data.get("transaction_id") or 0)
+    try:
+        tx_id = int(data.get("transaction_id") or 0)
+    except (TypeError, ValueError):
+        tx_id = 0
     tx_code = str(data.get("transaction_code") or "").strip().upper()
-    raw_condition = data.get("return_condition")
-    condition = raw_condition if raw_condition in ("Damaged", "Missing") else "Good"
-    notes = str(data.get("return_notes") or "").strip() or f"Returned in {condition} condition."
+
+    conn = get_db()
+    try:
+        row = None
+        if tx_id:
+            row = conn.execute(
+                "SELECT * FROM student_transactions WHERE id = ?", (tx_id,)
+            ).fetchone()
+        if row is None and tx_code:
+            row = conn.execute(
+                "SELECT * FROM student_transactions WHERE UPPER(transaction_code) = ?",
+                (tx_code,),
+            ).fetchone()
+
+        if not row:
+            return jsonify({"error": "Borrow transaction record not found."}), 404
+
+        if row["status"] == "Returned / Logged Out":
+            return (
+                jsonify({"error": "This transaction has already been returned and logged out."}),
+                400,
+            )
+
+        eq_by_id, eq_by_qr = _build_equipment_lookup(conn)
+        tx_dict = serialize_transaction(row, eq_by_id=eq_by_id, eq_by_qr=eq_by_qr)
+
+        token = _generate_return_session_token(conn)
+        now_dt = datetime.now(timezone.utc)
+        expires_dt = now_dt + timedelta(minutes=RETURN_SESSION_MINUTES)
+        base_url = resolve_public_base_url(request)
+        mobile_url = f"{base_url}/student/return/{token}"
+        qr_data_url = make_qr_data_url(mobile_url)
+
+        conn.execute(
+            """
+            INSERT INTO return_sessions (
+                session_token, transaction_id, qr_data_url, mobile_url,
+                status, created_at, expires_at, completed_transaction_json
+            ) VALUES (?, ?, ?, ?, 'pending_verification', ?, ?, NULL)
+            """,
+            (
+                token,
+                tx_dict["id"],
+                qr_data_url,
+                mobile_url,
+                now_dt.isoformat(),
+                expires_dt.isoformat(),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return (
+        jsonify({
+            "session": {
+                "session_token": token,
+                "transaction_id": tx_dict["id"],
+                "transaction_code": tx_dict["transaction_code"],
+                "mobile_url": mobile_url,
+                "qr_data_url": qr_data_url,
+                "status": "pending_verification",
+                "created_at": now_dt.isoformat(),
+                "expires_at": expires_dt.isoformat(),
+                "items": tx_dict["items"],
+                "masked_student_name": mask_student_name(tx_dict["student_name"]),
+                "masked_student_id": mask_student_id(tx_dict["student_id_lrn"]),
+            }
+        }),
+        201,
+    )
+
+
+@app.route("/api/kiosk/return-session/<token>", methods=["GET"])
+def api_get_return_session(token: str):
+    clean_token = (token or "").strip()
+    conn = get_db()
+    try:
+        sess_row = conn.execute(
+            "SELECT * FROM return_sessions WHERE session_token = ?", (clean_token,)
+        ).fetchone()
+        if not sess_row:
+            return jsonify({"error": "Return verification session not found."}), 404
+
+        expires_dt = _parse_iso_utc(sess_row["expires_at"])
+        is_expired = sess_row["status"] == "expired" or (
+            sess_row["status"] == "pending_verification"
+            and (expires_dt is None or expires_dt <= datetime.now(timezone.utc))
+        )
+        if is_expired:
+            if sess_row["status"] != "expired":
+                conn.execute(
+                    "UPDATE return_sessions SET status = 'expired' WHERE session_token = ?",
+                    (clean_token,),
+                )
+                conn.commit()
+            return (
+                jsonify({
+                    "error": "Return verification QR session has expired. Please generate a new return QR at the Kiosk.",
+                    "expired": True,
+                    "status": "expired",
+                }),
+                410,
+            )
+
+        tx_row = conn.execute(
+            "SELECT * FROM student_transactions WHERE id = ?", (sess_row["transaction_id"],)
+        ).fetchone()
+        if not tx_row:
+            return jsonify({"error": "Associated borrow transaction not found."}), 404
+
+        eq_by_id, eq_by_qr = _build_equipment_lookup(conn)
+        tx_dict = serialize_transaction(tx_row, eq_by_id=eq_by_id, eq_by_qr=eq_by_qr)
+        safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+        safety_dict = serialize_safety_status(safety_row)
+
+        completed_tx = None
+        if sess_row["completed_transaction_json"]:
+            completed_tx = json.loads(sess_row["completed_transaction_json"])
+            if isinstance(completed_tx, dict) and isinstance(completed_tx.get("items"), list):
+                completed_tx["items"] = _enrich_items_with_instructions(
+                    completed_tx["items"], eq_by_id=eq_by_id, eq_by_qr=eq_by_qr
+                )
+        elif sess_row["status"] == "completed":
+            completed_tx = tx_dict
+
+        response_payload: Dict[str, Any] = {
+            "session": {
+                "session_token": sess_row["session_token"],
+                "transaction_id": sess_row["transaction_id"],
+                "transaction_code": tx_dict["transaction_code"],
+                "qr_data_url": sess_row["qr_data_url"],
+                "mobile_url": sess_row["mobile_url"],
+                "status": sess_row["status"],
+                "created_at": sess_row["created_at"],
+                "expires_at": sess_row["expires_at"],
+                "items": tx_dict["items"],
+                "masked_student_name": mask_student_name(tx_dict["student_name"]),
+                "masked_student_id": mask_student_id(tx_dict["student_id_lrn"]),
+                "completed_transaction": completed_tx,
+            },
+            "transaction_preview": _build_transaction_preview(tx_dict),
+            "safety_status": safety_dict,
+        }
+
+        student_row, _ = get_authenticated_student(request, conn=conn)
+        if student_row is not None and student_row["status"] == "approved":
+            owner = is_transaction_owner(tx_dict, student_row)
+            response_payload["is_owner"] = owner
+            response_payload["transaction"] = tx_dict if owner else None
+    finally:
+        conn.close()
+
+    return jsonify(response_payload)
+
+
+@app.route("/api/kiosk/return-session/<token>/complete", methods=["POST"])
+def api_complete_return_session(token: str):
+    data = request.get_json(silent=True) or {}
+    clean_token = (token or "").strip()
+    is_direct = clean_token.upper() == "DIRECT"
+
+    conn = get_db()
+    try:
+        student_row, _ = get_authenticated_student(request, conn=conn)
+        if not student_row:
+            return (
+                jsonify({"error": "Student login required to verify and complete equipment return."}),
+                401,
+            )
+
+        if student_row["status"] != "approved":
+            return (
+                jsonify({
+                    "error": "Your student account is not approved for equipment return.",
+                    "account_status": student_row["status"],
+                    "rejection_reason": student_row["rejection_reason"] or "",
+                }),
+                403,
+            )
+
+        sess_row = None
+        tx_row = None
+        if is_direct:
+            try:
+                tx_id = int(data.get("transaction_id") or 0)
+            except (TypeError, ValueError):
+                tx_id = 0
+            tx_code = str(data.get("transaction_code") or "").strip().upper()
+            if tx_id:
+                tx_row = conn.execute(
+                    "SELECT * FROM student_transactions WHERE id = ?", (tx_id,)
+                ).fetchone()
+            if tx_row is None and tx_code:
+                tx_row = conn.execute(
+                    "SELECT * FROM student_transactions WHERE UPPER(transaction_code) = ?",
+                    (tx_code,),
+                ).fetchone()
+            if not tx_row:
+                return jsonify({"error": "Borrow transaction record not found."}), 404
+        else:
+            sess_row = conn.execute(
+                "SELECT * FROM return_sessions WHERE session_token = ?", (clean_token,)
+            ).fetchone()
+            if not sess_row:
+                return jsonify({"error": "Return verification session not found."}), 404
+
+            if sess_row["status"] == "completed":
+                eq_by_id, eq_by_qr = _build_equipment_lookup(conn)
+                if sess_row["completed_transaction_json"]:
+                    completed_tx = json.loads(sess_row["completed_transaction_json"])
+                    if isinstance(completed_tx, dict) and isinstance(completed_tx.get("items"), list):
+                        completed_tx["items"] = _enrich_items_with_instructions(
+                            completed_tx["items"], eq_by_id=eq_by_id, eq_by_qr=eq_by_qr
+                        )
+                else:
+                    existing_tx = conn.execute(
+                        "SELECT * FROM student_transactions WHERE id = ?",
+                        (sess_row["transaction_id"],),
+                    ).fetchone()
+                    if not existing_tx:
+                        return jsonify({"error": "Borrow transaction record not found."}), 404
+                    completed_tx = serialize_transaction(
+                        existing_tx, eq_by_id=eq_by_id, eq_by_qr=eq_by_qr
+                    )
+
+                if not is_transaction_owner(completed_tx, student_row):
+                    return (
+                        jsonify({
+                            "error": (
+                                "Verification Failed: This borrow record belongs to a different "
+                                "student account. You can only return equipment borrowed under "
+                                "your own account."
+                            ),
+                            "ownership_mismatch": True,
+                        }),
+                        403,
+                    )
+                safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+                return jsonify({
+                    "success": True,
+                    "transaction": completed_tx,
+                    "safety_status": serialize_safety_status(safety_row),
+                })
+
+            expires_dt = _parse_iso_utc(sess_row["expires_at"])
+            if (
+                sess_row["status"] == "expired"
+                or expires_dt is None
+                or expires_dt <= datetime.now(timezone.utc)
+            ):
+                if sess_row["status"] != "expired":
+                    conn.execute(
+                        "UPDATE return_sessions SET status = 'expired' WHERE session_token = ?",
+                        (clean_token,),
+                    )
+                    conn.commit()
+                return (
+                    jsonify({
+                        "error": "Return verification QR session has expired. Please generate a new return QR at the Kiosk.",
+                        "expired": True,
+                    }),
+                    410,
+                )
+
+            tx_row = conn.execute(
+                "SELECT * FROM student_transactions WHERE id = ?",
+                (sess_row["transaction_id"],),
+            ).fetchone()
+            if not tx_row:
+                return jsonify({"error": "Borrow transaction record not found."}), 404
+
+        tx_check = serialize_transaction(tx_row)
+        if not is_transaction_owner(tx_check, student_row):
+            return (
+                jsonify({
+                    "error": (
+                        "Verification Failed: This borrow record belongs to a different student "
+                        "account. You can only return equipment borrowed under your own account."
+                    ),
+                    "ownership_mismatch": True,
+                }),
+                403,
+            )
+
+        if tx_row["status"] == "Returned / Logged Out":
+            return (
+                jsonify({"error": "This transaction has already been returned and logged out."}),
+                400,
+            )
+
+        condition = _normalize_return_condition(data.get("return_condition"))
+        notes = str(data.get("return_notes") or "").strip()
+        verified_by = f"{student_row['full_name']} ({student_row['student_id_lrn']})"
+
+        tx_dict, safety_dict, prev_level = _execute_transaction_return(
+            conn, tx_row, condition, notes, verified_by
+        )
+
+        if sess_row is not None:
+            conn.execute(
+                """
+                UPDATE return_sessions
+                SET status = 'completed', completed_transaction_json = ?
+                WHERE session_token = ?
+                """,
+                (json.dumps(tx_dict), clean_token),
+            )
+
+        conn.commit()
+    finally:
+        conn.close()
+
+    if safety_dict["level"] != prev_level:
+        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=True)
+    else:
+        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=False)
+        led_controller.beep("caution" if condition in ("Damaged", "Missing") else "confirm")
+
+    if sess_row is not None:
+        broadcast_return_update(clean_token, {
+            "event": "return_completed",
+            "transaction": tx_dict,
+            "safety_status": safety_dict,
+        })
+
+    broadcast_global_update({
+        "event": "data_updated",
+        "transaction": tx_dict,
+        "safety_status": safety_dict,
+        "hardware": hw_status,
+    })
+
+    return jsonify({
+        "success": True,
+        "transaction": tx_dict,
+        "safety_status": safety_dict,
+    })
+
+
+@app.route("/api/kiosk/return", methods=["POST"])
+@require_admin_auth()
+def api_return_equipment():
+    admin = g.admin_session
+    data = request.get_json(silent=True) or {}
+    try:
+        tx_id = int(data.get("transaction_id") or 0)
+    except (TypeError, ValueError):
+        tx_id = 0
+    tx_code = str(data.get("transaction_code") or "").strip().upper()
+    condition = _normalize_return_condition(data.get("return_condition"))
+    notes = str(data.get("return_notes") or "").strip()
+    verified_by = f"Admin: {admin.get('name') or admin.get('email') or 'Administrator'}"
 
     conn = get_db()
     try:
@@ -2126,71 +2708,10 @@ def api_return_equipment():
         if row["status"] == "Returned / Logged Out":
             return jsonify({"error": "This transaction has already been returned and logged out."}), 400
 
-        resolved_tx_id = row["id"]
-        now_iso = datetime.now(timezone.utc).isoformat()
-        items = json.loads(row["items_json"] or "[]")
-
-        if condition != "Missing":
-            for item in items:
-                conn.execute(
-                    "UPDATE equipment SET available_qty = MIN(total_qty, available_qty + ?) WHERE id = ?",
-                    (int(item["quantity"]), int(item["equipment_id"])),
-                )
-                if condition == "Damaged":
-                    conn.execute(
-                        "UPDATE equipment SET condition = 'Damaged' WHERE id = ?",
-                        (int(item["equipment_id"]),),
-                    )
-
-        conn.execute(
-            """
-            UPDATE student_transactions
-            SET time_out = ?, return_condition = ?, return_notes = ?, status = 'Returned / Logged Out'
-            WHERE id = ?
-            """,
-            (now_iso, condition, notes, resolved_tx_id),
+        tx_dict, safety_dict, prev_level = _execute_transaction_return(
+            conn, row, condition, notes, verified_by
         )
-
-        prev_safety_row = conn.execute("SELECT level FROM safety_status WHERE id = 1").fetchone()
-        prev_level = prev_safety_row["level"] if prev_safety_row else "SAFE"
-
-        if condition in ("Damaged", "Missing"):
-            items_summary = ", ".join(
-                f"{it.get('quantity', 1)}x {it.get('name', 'Item')}" for it in items
-            )
-            compartments = ", ".join(
-                sorted({it.get("storage_compartment", "") for it in items if it.get("storage_compartment")})
-            )
-            msg = (
-                f"Damaged apparatus returned ({row['transaction_code']}: {items_summary}). Inspect {compartments or 'compartment'} before next use."
-                if condition == "Damaged"
-                else f"Missing apparatus reported on return ({row['transaction_code']}: {items_summary}). Lab Coordinator verification required for {compartments or 'compartment'}."
-            )
-            conn.execute(
-                """
-                UPDATE safety_status
-                SET level = CASE WHEN level = 'UNSAFE' THEN 'UNSAFE' ELSE 'CAUTION' END,
-                    headline = CASE WHEN level = 'UNSAFE' THEN headline ELSE ? END,
-                    message = ?,
-                    updated_by = ?,
-                    updated_at = ?
-                WHERE id = 1
-                """,
-                (
-                    SAFETY_PRESETS["CAUTION"]["headline"],
-                    msg,
-                    f"LabGuard+ Return Monitor ({condition})",
-                    now_iso,
-                ),
-            )
-
         conn.commit()
-        updated = conn.execute(
-            "SELECT * FROM student_transactions WHERE id = ?", (resolved_tx_id,)
-        ).fetchone()
-        safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
-        tx_dict = serialize_transaction(updated)
-        safety_dict = serialize_safety_status(safety_row)
     finally:
         conn.close()
 

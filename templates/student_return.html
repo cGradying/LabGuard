@@ -1,0 +1,1377 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>LabGuard+ Verified Equipment Return — Arellano University Jose Rizal Campus</title>
+    <link rel="stylesheet" href="/css/labguard.css" />
+    <style>
+      body {
+        font-family: 'DM Sans', 'DejaVu Sans', system-ui, sans-serif;
+        color: #0f172a;
+        -webkit-tap-highlight-color: transparent;
+      }
+      h1, h2, h3, h4, .font-heading {
+        font-family: 'Plus Jakarta Sans', 'DejaVu Sans', system-ui, -apple-system, sans-serif;
+      }
+      .font-mono {
+        font-family: 'JetBrains Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
+        font-variant-numeric: tabular-nums;
+      }
+      .tabular-nums {
+        font-variant-numeric: tabular-nums;
+      }
+      @keyframes popInCard {
+        0% {
+          opacity: 0;
+          transform: translateY(14px) scale(0.97);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      .animate-card-pop {
+        animation: popInCard 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      @keyframes checkRingPulse {
+        0% {
+          transform: scale(0.7);
+          opacity: 0.9;
+        }
+        50% {
+          transform: scale(1.4);
+          opacity: 0.35;
+        }
+        100% {
+          transform: scale(1.8);
+          opacity: 0;
+        }
+      }
+      @keyframes checkCirclePop {
+        0% {
+          transform: scale(0);
+          opacity: 0;
+        }
+        60% {
+          transform: scale(1.18);
+          opacity: 1;
+        }
+        80% {
+          transform: scale(0.94);
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+      @keyframes checkStrokeDraw {
+        0% {
+          stroke-dashoffset: 48;
+        }
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes sparklePop {
+        0% {
+          transform: scale(0) rotate(0deg);
+          opacity: 0;
+        }
+        50% {
+          transform: scale(1.25) rotate(45deg);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1) rotate(90deg);
+          opacity: 0.85;
+        }
+      }
+      .check-ring-pulse {
+        animation: checkRingPulse 2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+      }
+      .check-circle-pop {
+        animation: checkCirclePop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      }
+      .check-svg-path {
+        stroke-dasharray: 48;
+        stroke-dashoffset: 48;
+        animation: checkStrokeDraw 0.6s cubic-bezier(0.65, 0, 0.45, 1) 0.28s forwards;
+      }
+      .check-sparkle-1 {
+        animation: sparklePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.35s both;
+      }
+      .check-sparkle-2 {
+        animation: sparklePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s both;
+      }
+      .check-sparkle-3 {
+        animation: sparklePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.52s both;
+      }
+    </style>
+  </head>
+  <!-- On phones (<640px): native full-bleed screen. On desktop (>=640px): dark studio backdrop showcasing smartphone bezel -->
+  <body class="min-h-screen bg-[#F8FAFC] sm:bg-slate-900 sm:py-8 sm:px-4 flex flex-col items-center justify-center">
+    <!-- PC Context Label (Hidden on actual phones) -->
+    <div class="hidden sm:flex items-center justify-between w-full max-w-[420px] mb-3 px-2 text-xs text-slate-300">
+      <span class="font-mono font-semibold text-[#F5A623]">
+        Mobile Verified Return (Second Verification)
+      </span>
+      <a href="/kiosk" class="text-slate-300 hover:text-white underline">
+        ← Back to Kiosk LCD
+      </a>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- SMARTPHONE DEVICE FRAME ON PC / NATIVE FULL-SCREEN ON MOBILE PHONE  -->
+    <!-- =================================================================== -->
+    <div
+      class="w-full max-w-[420px] bg-[#F8FAFC] min-h-screen sm:min-h-[820px] sm:max-h-[880px] sm:rounded-[44px] sm:border-[10px] sm:border-slate-800 sm:shadow-2xl flex flex-col overflow-hidden relative"
+    >
+      <!-- Phone Status Bar & Speaker Notch (Visible on PC Phone Frame) -->
+      <div class="hidden sm:flex items-center justify-between bg-[#003087] text-white px-6 pt-2.5 pb-1 text-[11px] font-mono shrink-0">
+        <span>9:41</span>
+        <div class="w-24 h-4 bg-slate-950 rounded-full"></div>
+        <span>5G · 100%</span>
+      </div>
+
+      <!-- Mobile Top App Bar with Official AU Seal -->
+      <header class="bg-[#003087] text-white px-4 py-3 flex items-center justify-between gap-3 border-b border-white/15 shrink-0 shadow-xs">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <img
+            src="/images/au_seal.jpg"
+            alt="Arellano University"
+            class="w-8 h-8 object-contain rounded-full bg-white p-0.5 shadow-xs shrink-0"
+          />
+          <div class="min-w-0">
+            <span class="text-base font-extrabold tracking-tight text-white font-heading block leading-none truncate">
+              LabGuard+
+            </span>
+            <span class="text-[11px] text-blue-200 block truncate mt-0.5">
+              Verified Return · Second Verification
+            </span>
+          </div>
+        </div>
+        <span
+          id="header-token-label"
+          class="font-mono text-[10px] px-2 py-0.5 rounded bg-white/15 text-[#F5A623] font-bold shrink-0"
+        >
+          RET-QR
+        </span>
+      </header>
+
+      <!-- Scrollable Smartphone Viewport Content -->
+      <main class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <!-- =============================================================== -->
+        <!-- LOADING STATE                                                   -->
+        <!-- =============================================================== -->
+        <div
+          id="return-loading-box"
+          class="bg-white border border-slate-200 rounded-2xl p-6 text-center space-y-2.5 shadow-2xs"
+        >
+          <div class="w-10 h-10 mx-auto rounded-full bg-blue-50 border border-blue-200 text-[#003087] flex items-center justify-center">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+          </div>
+          <p class="text-xs font-heading font-bold text-slate-800">
+            Loading Return Verification Session...
+          </p>
+          <p class="text-[11px] text-slate-500">
+            Checking return QR record and your verified student account.
+          </p>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- SESSION EXPIRED / NOT FOUND ERROR STATE                         -->
+        <!-- =============================================================== -->
+        <section
+          id="return-session-error-box"
+          class="hidden bg-white border-2 border-amber-300 rounded-2xl p-5 text-center space-y-3 shadow-sm animate-card-pop"
+        >
+          <div class="w-12 h-12 mx-auto rounded-full bg-amber-50 border border-amber-300 text-amber-700 flex items-center justify-center">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <div class="space-y-1">
+            <h1 id="return-session-error-title" class="text-base font-extrabold text-slate-900 font-heading">
+              Return Session Unavailable
+            </h1>
+            <p id="return-session-error-msg" class="text-xs text-slate-600 leading-relaxed">
+              This Return Verification QR code has expired or could not be found. Tap "Verify &amp; Return" on the Kiosk touchscreen to generate a fresh QR code, or return directly from your Student Account Portal.
+            </p>
+          </div>
+          <div class="space-y-2 pt-1">
+            <a
+              href="/student/account"
+              class="block w-full py-3 px-4 bg-[#003087] hover:bg-[#002466] text-white text-xs font-heading font-extrabold rounded-xl transition-colors"
+            >
+              Open My Student Account →
+            </a>
+            <a
+              href="/kiosk"
+              class="hidden sm:block w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-heading font-bold rounded-xl transition-colors"
+            >
+              Return to Kiosk
+            </a>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- CARD 1: RETURN RECORD PREVIEW (PRIVACY-MASKED UNTIL VERIFIED)   -->
+        <!-- =============================================================== -->
+        <section
+          id="return-preview-card"
+          class="hidden bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-2xs"
+        >
+          <div class="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+            <div class="min-w-0">
+              <p class="text-[10px] font-mono uppercase tracking-wider text-[#003087] font-bold">
+                Return Record Preview
+              </p>
+              <p id="preview-tx-code" class="font-mono text-sm font-extrabold text-slate-900 mt-0.5 truncate"></p>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-900 font-mono text-[10px] font-bold shrink-0">
+              Identity Masked
+            </span>
+          </div>
+
+          <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] space-y-1">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-slate-500">Borrower</span>
+              <span id="preview-masked-name" class="font-heading font-bold text-slate-900 truncate"></span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-slate-500">Student ID / LRN</span>
+              <span id="preview-masked-id" class="font-mono font-bold text-[#003087] truncate"></span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-slate-500">Strand / Section</span>
+              <span id="preview-grade-section" class="font-mono text-slate-700 truncate"></span>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <p class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+              Borrowed Apparatus &amp; Storage Compartments
+            </p>
+            <div id="preview-items-list" class="space-y-1.5"></div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- STEP 1: STUDENT LOGIN VERIFICATION GATE (LOGGED OUT)            -->
+        <!-- =============================================================== -->
+        <section id="return-login-gate" class="hidden space-y-4 animate-card-pop">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5 shadow-sm">
+            <div class="bg-blue-50/80 border border-blue-200 rounded-xl p-3 flex items-start gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-[#003087] text-white flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <path d="M9 12l2 2 4-4" />
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <h1 class="text-sm font-extrabold text-[#003087] font-heading leading-tight">
+                  Sign In to Verify Your Identity
+                </h1>
+                <p class="text-[11px] text-slate-600 leading-snug mt-0.5">
+                  Log in with the AU-JRC student account that borrowed these items. Only the original borrower can confirm this return.
+                </p>
+              </div>
+            </div>
+
+            <form id="return-login-form" onsubmit="handleReturnLogin(event)" class="space-y-3">
+              <div>
+                <label for="return-login-identifier" class="block text-xs font-bold text-slate-800 mb-1">
+                  Student ID / LRN or School Email *
+                </label>
+                <input
+                  id="return-login-identifier"
+                  type="text"
+                  required
+                  autocomplete="username"
+                  placeholder="AUJRC-2026-0101 or name@arellano.edu.ph"
+                  class="w-full h-11 px-3.5 text-xs sm:text-sm font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label for="return-login-password" class="block text-xs font-bold text-slate-800 mb-1">
+                  Account Password *
+                </label>
+                <input
+                  id="return-login-password"
+                  type="password"
+                  required
+                  autocomplete="current-password"
+                  placeholder="Enter your password"
+                  class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+                />
+              </div>
+
+              <!-- Color-Coded Login / Account Status Error Banner -->
+              <div id="return-login-error" role="alert" class="hidden rounded-xl p-3 border text-xs space-y-1.5"></div>
+
+              <button
+                id="return-login-btn"
+                type="submit"
+                class="w-full h-12 py-3 px-4 bg-[#003087] hover:bg-[#002466] active:scale-[0.99] disabled:opacity-60 text-white text-xs sm:text-sm font-heading font-extrabold tracking-wide rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Sign In &amp; Verify Ownership →
+              </button>
+            </form>
+
+            <div class="pt-2 border-t border-slate-100 space-y-2.5">
+              <a
+                id="return-gate-register-link"
+                href="/student/register"
+                class="block w-full py-2.5 px-3.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-center text-xs font-heading font-extrabold rounded-xl transition-colors"
+              >
+                New student? Register &amp; Upload School ID →
+              </a>
+
+              <!-- Discreet Demo Account Hint -->
+              <div class="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] text-slate-500">
+                <span class="truncate">
+                  Demo Account:
+                  <code class="font-mono font-bold text-slate-700">AUJRC-2026-0101</code> /
+                  <code class="font-mono font-bold text-slate-700">student123</code>
+                </span>
+                <button
+                  type="button"
+                  onclick="fillDemoReturnLogin()"
+                  class="font-heading font-bold text-[#003087] underline shrink-0 cursor-pointer"
+                >
+                  Auto-Fill
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- STEP 2A: OWNERSHIP MISMATCH BLOCK (LOGGED IN, is_owner = false) -->
+        <!-- =============================================================== -->
+        <section
+          id="ownership-mismatch-box"
+          class="hidden bg-white border-2 border-[#C8102E] rounded-2xl p-4 space-y-3.5 shadow-lg animate-card-pop"
+        >
+          <div class="bg-red-50 border border-red-200 rounded-xl p-3.5 space-y-2.5">
+            <div class="flex items-start gap-3">
+              <div class="w-11 h-11 rounded-2xl bg-[#C8102E] text-white flex items-center justify-center shrink-0 shadow-sm">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <span class="inline-block px-2 py-0.5 rounded-full bg-[#C8102E] text-white font-mono text-[10px] font-extrabold uppercase tracking-wider">
+                  Ownership Mismatch · Blocked
+                </span>
+                <h1 class="text-base font-extrabold text-[#C8102E] font-heading leading-tight mt-1">
+                  Account Ownership Verification Failed
+                </h1>
+              </div>
+            </div>
+
+            <p id="mismatch-explanation-text" class="text-xs text-red-950 leading-relaxed font-medium">
+              You are signed in as a different student account, which does not match the student who borrowed this equipment. For laboratory accountability, you can only return apparatus checked out under your own verified account.
+            </p>
+          </div>
+
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] space-y-1">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-slate-500">Currently Signed In</span>
+              <span id="mismatch-current-student" class="font-heading font-bold text-slate-900 truncate"></span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-slate-500">Signed-In LRN</span>
+              <span id="mismatch-current-lrn" class="font-mono font-bold text-[#C8102E] truncate"></span>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <button
+              type="button"
+              onclick="handleSwitchAccount()"
+              class="w-full h-12 py-3 px-4 bg-[#C8102E] hover:bg-[#a50d25] active:scale-[0.99] text-white text-xs sm:text-sm font-heading font-extrabold tracking-wide rounded-xl shadow-md transition-all cursor-pointer"
+            >
+              Sign Out &amp; Switch to Correct Account
+            </button>
+
+            <a
+              href="/student/account"
+              class="block w-full py-2.5 px-4 bg-white hover:bg-slate-50 border-2 border-slate-200 text-slate-800 text-center text-xs font-heading font-extrabold rounded-xl transition-colors"
+            >
+              Go to My Account
+            </a>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- STEP 2B: VERIFIED OWNER RETURN FORM (is_owner = true ONLY!)     -->
+        <!-- =============================================================== -->
+        <form
+          id="return-confirm-form"
+          onsubmit="submitVerifiedReturn(event)"
+          class="hidden space-y-4 animate-card-pop"
+        >
+          <!-- Green Identity Verified Banner -->
+          <div class="bg-emerald-50/90 border-2 border-emerald-400 rounded-2xl p-3.5 space-y-2.5 shadow-2xs">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#16A34A] text-white font-mono text-[10px] font-extrabold uppercase tracking-wider">
+                  ✓ Identity Verified · Original Borrower
+                </span>
+                <h1 id="verified-owner-name" class="text-sm font-extrabold text-slate-900 font-heading mt-1.5 truncate"></h1>
+              </div>
+              <span
+                id="verified-owner-strand"
+                class="px-2 py-0.5 rounded-lg bg-white border border-emerald-200 font-mono text-[10px] font-extrabold text-[#003087] shrink-0"
+              ></span>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 bg-white/90 border border-emerald-200 rounded-xl px-3 py-2 text-[11px]">
+              <span id="verified-owner-lrn" class="font-mono font-bold text-[#003087] truncate"></span>
+              <button
+                type="button"
+                onclick="handleSwitchAccount()"
+                class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-[10px] font-heading font-bold rounded-lg transition-colors cursor-pointer shrink-0"
+              >
+                Switch Account
+              </button>
+            </div>
+          </div>
+
+          <!-- Full Unmasked Borrowed Items & Compartments Card -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+            <div class="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+              <div class="min-w-0">
+                <p class="text-[10px] font-mono uppercase tracking-wider text-[#003087] font-bold">
+                  Place Back in Storage Compartments
+                </p>
+                <p id="owner-tx-code" class="font-mono text-sm font-extrabold text-slate-900 mt-0.5"></p>
+                <p id="owner-tx-subject" class="text-[11px] text-slate-600 mt-0.5 leading-snug"></p>
+              </div>
+              <span
+                id="owner-items-count"
+                class="px-2 py-0.5 rounded-lg bg-blue-50 font-mono text-[11px] font-bold text-[#003087] shrink-0"
+              >
+                0 Units
+              </span>
+            </div>
+
+            <div id="owner-items-list" class="space-y-2"></div>
+          </div>
+
+          <!-- Condition Selection + Notes + Submit -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5 shadow-2xs">
+            <div class="space-y-2">
+              <label class="block text-xs font-extrabold text-slate-900 font-heading">
+                Select Returned Apparatus Condition *
+              </label>
+
+              <div class="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  id="return-cond-Good"
+                  onclick="selectVerifiedReturnCondition('Good')"
+                  class="min-h-[60px] py-2.5 px-2 rounded-xl border-2 border-[#16A34A] bg-[#16A34A] text-white font-heading font-extrabold text-xs flex flex-col items-center justify-center gap-0.5 shadow-xs transition-all cursor-pointer"
+                >
+                  <span class="text-sm leading-none">✓</span>
+                  <span>Good</span>
+                </button>
+                <button
+                  type="button"
+                  id="return-cond-Damaged"
+                  onclick="selectVerifiedReturnCondition('Damaged')"
+                  class="min-h-[60px] py-2.5 px-2 rounded-xl border-2 border-slate-200 bg-white hover:bg-amber-50 text-slate-700 font-heading font-extrabold text-xs flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer"
+                >
+                  <span class="text-sm leading-none">▲</span>
+                  <span>Damaged</span>
+                </button>
+                <button
+                  type="button"
+                  id="return-cond-Missing"
+                  onclick="selectVerifiedReturnCondition('Missing')"
+                  class="min-h-[60px] py-2.5 px-2 rounded-xl border-2 border-slate-200 bg-white hover:bg-red-50 text-slate-700 font-heading font-extrabold text-xs flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer"
+                >
+                  <span class="text-sm leading-none">✕</span>
+                  <span>Missing</span>
+                </button>
+              </div>
+
+              <!-- Dynamic Yellow CAUTION Warning when Damaged or Missing -->
+              <div
+                id="return-condition-warning"
+                role="alert"
+                class="hidden p-3 rounded-xl border text-xs font-medium leading-snug"
+              ></div>
+            </div>
+
+            <div>
+              <label for="return-notes-input" class="block text-xs font-bold text-slate-800 mb-1">
+                Return Remarks / Notes <span class="text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <input
+                id="return-notes-input"
+                type="text"
+                maxlength="240"
+                placeholder="e.g., Cleaned & placed back in shelf, or describe damage..."
+                class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+              />
+            </div>
+
+            <div
+              id="return-submit-error"
+              role="alert"
+              class="hidden text-xs font-semibold text-red-700 bg-red-50 p-3 rounded-xl border border-red-200"
+            ></div>
+
+            <button
+              id="return-submit-btn"
+              type="submit"
+              class="w-full h-12 py-3 px-4 bg-[#16A34A] hover:bg-emerald-700 active:scale-[0.99] disabled:opacity-60 text-white text-xs sm:text-sm font-heading font-extrabold tracking-wide rounded-xl shadow-md transition-all cursor-pointer"
+            >
+              Confirm Verified Equipment Return →
+            </button>
+          </div>
+        </form>
+
+        <!-- =============================================================== -->
+        <!-- STEP 3: VERIFIED RETURN RECEIPT                                 -->
+        <!-- =============================================================== -->
+        <section
+          id="return-completed-box"
+          class="hidden bg-white border-2 border-emerald-500 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl"
+        >
+          <div class="text-center space-y-2 border-b border-slate-100 pb-4">
+            <!-- Animated Celebratory Checkmark Icon -->
+            <div class="relative w-24 h-24 mx-auto flex items-center justify-center my-1">
+              <div
+                id="receipt-ring-1"
+                class="absolute inset-0 rounded-full bg-emerald-400/25 check-ring-pulse pointer-events-none"
+              ></div>
+              <div
+                id="receipt-ring-2"
+                class="absolute inset-2 rounded-full bg-emerald-500/20 check-ring-pulse pointer-events-none"
+                style="animation-delay: 0.5s;"
+              ></div>
+
+              <div id="receipt-sparkle-1" class="absolute -top-1 right-2 text-emerald-500 text-sm check-sparkle-1 pointer-events-none">✦</div>
+              <div id="receipt-sparkle-2" class="absolute bottom-1 -left-1 text-emerald-400 text-xs check-sparkle-2 pointer-events-none">✦</div>
+              <div class="absolute top-3 -left-2 text-[#F5A623] text-xs check-sparkle-3 pointer-events-none">★</div>
+
+              <div
+                id="receipt-check-circle"
+                class="relative w-16 h-16 rounded-full bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-xl shadow-emerald-500/35 check-circle-pop border-2 border-white/80"
+              >
+                <svg class="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path class="check-svg-path" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+            </div>
+
+            <p
+              id="receipt-tx-code"
+              class="text-xs font-mono font-bold uppercase tracking-wider text-[#16A34A] bg-emerald-50 py-1 px-3.5 rounded-full inline-block border border-emerald-200 shadow-2xs"
+            ></p>
+
+            <h2 id="receipt-heading" class="text-xl font-extrabold text-slate-900 font-heading">
+              Verified Equipment Return Completed!
+            </h2>
+            <p id="receipt-subtitle" class="text-xs text-slate-600 max-w-xs mx-auto leading-snug">
+              Your account ownership was verified and the laboratory inventory has been updated.
+            </p>
+          </div>
+
+          <div
+            id="receipt-details"
+            class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5 font-medium"
+          ></div>
+
+          <div
+            id="receipt-safety-notice"
+            class="hidden p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 font-semibold leading-snug"
+          ></div>
+
+          <div class="space-y-1.5">
+            <p class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+              Returned Apparatus Summary
+            </p>
+            <div id="receipt-items-list" class="space-y-1.5"></div>
+          </div>
+
+          <div class="space-y-2 pt-1">
+            <a
+              href="/student/account"
+              class="block w-full py-3.5 px-4 bg-[#16A34A] hover:bg-emerald-700 active:scale-[0.99] text-white text-center text-xs font-heading font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md"
+            >
+              Open My Account →
+            </a>
+
+            <a
+              href="/kiosk"
+              class="hidden sm:block w-full py-3 px-4 bg-[#003087] hover:bg-[#002466] active:scale-[0.99] text-white text-center text-xs font-heading font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-sm cursor-pointer"
+            >
+              Return to Kiosk
+            </a>
+          </div>
+        </section>
+      </main>
+
+      <!-- Phone Home Indicator Bar (Visible on PC Phone Frame) -->
+      <div class="hidden sm:flex justify-center py-2 bg-white border-t border-slate-100 shrink-0">
+        <div class="w-32 h-1.5 bg-slate-300 rounded-full"></div>
+      </div>
+    </div>
+
+    <!-- Discreet Prototype Route Helper (Desktop preview only — hidden on mobile phones) -->
+    <div
+      id="proto-route-helper"
+      class="hidden sm:flex fixed bottom-3 right-3 z-50 bg-slate-900/90 text-white border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg items-center gap-2.5"
+    >
+      <span class="font-mono text-[11px] text-slate-400">Preview Routes:</span>
+      <a href="/kiosk" class="font-medium text-white hover:text-[#F5A623] underline">kiosk.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/register" class="font-medium text-white hover:text-[#F5A623] underline">student_register.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/account" class="font-medium text-white hover:text-[#F5A623] underline">student_account.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/checkout/DEMO-QR" class="font-medium text-white hover:text-[#F5A623] underline">student_form.html</a>
+      <span class="text-slate-600">·</span>
+      <span class="font-semibold text-[#F5A623]">student_return.html</span>
+      <span class="text-slate-600">·</span>
+      <a href="/admin" class="font-medium text-white hover:text-[#F5A623] underline">admin.html</a>
+      <button
+        type="button"
+        onclick="document.getElementById('proto-route-helper').remove()"
+        class="ml-1 text-slate-400 hover:text-white cursor-pointer"
+        title="Hide helper"
+      >
+        ✕
+      </button>
+    </div>
+
+    <script>
+      const STUDENT_TOKEN_KEY = 'labguard_student_token';
+      const urlParams = new URLSearchParams(window.location.search);
+      const pathParts = window.location.pathname.split('/').filter(Boolean);
+      const lastSegment = pathParts[pathParts.length - 1] || '';
+      const sessionToken =
+        urlParams.get('token') ||
+        (lastSegment &&
+        lastSegment.toLowerCase() !== 'student_return.html' &&
+        lastSegment.toLowerCase() !== 'return'
+          ? decodeURIComponent(lastSegment)
+          : '');
+
+      const headerTokenEl = document.getElementById('header-token-label');
+      if (headerTokenEl) {
+        headerTokenEl.textContent = sessionToken || 'RET-QR';
+      }
+
+      const gateRegLink = document.getElementById('return-gate-register-link');
+      if (gateRegLink) {
+        gateRegLink.href = `/student/register?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+      }
+
+      let currentStudent = null;
+      let currentSessionData = null;
+      let selectedReturnCondition = 'Good';
+
+      function escapeHtml(str) {
+        return String(str === null || str === undefined ? '' : str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function getStudentToken() {
+        return localStorage.getItem(STUDENT_TOKEN_KEY) || '';
+      }
+
+      function setStudentToken(token) {
+        if (token) {
+          localStorage.setItem(STUDENT_TOKEN_KEY, token);
+        } else {
+          localStorage.removeItem(STUDENT_TOKEN_KEY);
+        }
+      }
+
+      function formatDateTime(isoStr) {
+        if (!isoStr) return 'Just now';
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return String(isoStr);
+        return `${d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} · ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      }
+
+      function fillDemoReturnLogin() {
+        const idEl = document.getElementById('return-login-identifier');
+        const pwEl = document.getElementById('return-login-password');
+        if (idEl) idEl.value = 'AUJRC-2026-0101';
+        if (pwEl) pwEl.value = 'student123';
+        hideReturnLoginError();
+      }
+
+      function hideReturnLoginError() {
+        const box = document.getElementById('return-login-error');
+        if (box) {
+          box.classList.add('hidden');
+          box.innerHTML = '';
+        }
+      }
+
+      function showReturnLoginError(status, message, rejectionReason) {
+        const box = document.getElementById('return-login-error');
+        if (!box) return;
+        const regNextUrl = `/student/register?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+        const st = (status || '').toLowerCase();
+
+        if (st === 'pending') {
+          box.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-amber-50 border-amber-300 text-amber-950';
+          box.innerHTML = `
+            <span class="inline-block px-2 py-0.5 rounded-full bg-[#F5A623] text-slate-950 font-mono text-[10px] font-extrabold uppercase">Pending Approval</span>
+            <p class="font-semibold leading-snug">${escapeHtml(message || 'Your registration is awaiting Laboratory Admin verification of your School ID.')}</p>
+            <a href="${regNextUrl}" class="inline-block font-heading font-bold text-amber-900 underline">Check Approval Status →</a>
+          `;
+        } else if (st === 'rejected') {
+          const reason = (rejectionReason || '').trim();
+          box.className = 'rounded-xl p-3 border text-xs space-y-2 bg-red-50 border-red-300 text-red-900';
+          box.innerHTML = `
+            <span class="inline-block px-2 py-0.5 rounded-full bg-[#C8102E] text-white font-mono text-[10px] font-extrabold uppercase">Registration Rejected</span>
+            <p class="font-semibold leading-snug">${escapeHtml(message || 'Your registration was rejected by the Laboratory Admin.')}</p>
+            ${
+              reason
+                ? `<p class="p-2 bg-white/80 border border-red-200 rounded-lg text-[11px] font-medium text-red-900"><strong>Reason:</strong> ${escapeHtml(reason)}</p>`
+                : ''
+            }
+            <a href="${regNextUrl}" class="inline-block px-3 py-1.5 bg-white hover:bg-red-100 border border-red-300 text-red-800 text-[11px] font-heading font-bold rounded-lg">
+              Re-submit Registration →
+            </a>
+          `;
+        } else if (st === 'suspended') {
+          box.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-red-50 border-red-300 text-red-900';
+          box.innerHTML = `
+            <span class="inline-block px-2 py-0.5 rounded-full bg-red-700 text-white font-mono text-[10px] font-extrabold uppercase">Account Suspended</span>
+            <p class="font-semibold leading-snug">${escapeHtml(message || 'Your student account is suspended. Please contact Laboratory Personnel.')}</p>
+          `;
+        } else {
+          box.className = 'rounded-xl p-3 border text-xs space-y-1 bg-red-50 border-red-200 text-red-700';
+          box.innerHTML = `<p class="font-semibold leading-snug">${escapeHtml(message || 'Invalid Student ID / Email or password.')}</p>`;
+        }
+        box.classList.remove('hidden');
+      }
+
+      function hideAllViews() {
+        document.getElementById('return-loading-box').classList.add('hidden');
+        document.getElementById('return-session-error-box').classList.add('hidden');
+        document.getElementById('return-preview-card').classList.add('hidden');
+        document.getElementById('return-login-gate').classList.add('hidden');
+        document.getElementById('ownership-mismatch-box').classList.add('hidden');
+        document.getElementById('return-confirm-form').classList.add('hidden');
+        document.getElementById('return-completed-box').classList.add('hidden');
+      }
+
+      function showSessionError(title, msg) {
+        hideAllViews();
+        document.getElementById('return-session-error-title').textContent = title || 'Return Session Unavailable';
+        document.getElementById('return-session-error-msg').textContent =
+          msg ||
+          'This Return Verification QR code has expired or could not be found. Tap "Verify & Return" on the Kiosk to generate a fresh QR code.';
+        document.getElementById('return-session-error-box').classList.remove('hidden');
+      }
+
+      function populatePreviewCard(preview, session) {
+        const txPreview = preview || {};
+        const items = Array.isArray(txPreview.items)
+          ? txPreview.items
+          : Array.isArray(session && session.items)
+            ? session.items
+            : [];
+
+        document.getElementById('preview-tx-code').textContent =
+          txPreview.transaction_code || (session && session.transaction_code) || 'Active Loan';
+        document.getElementById('preview-masked-name').textContent =
+          txPreview.masked_student_name || (session && session.masked_student_name) || 'Masked Student';
+        document.getElementById('preview-masked-id').textContent =
+          txPreview.masked_student_id || (session && session.masked_student_id) || '********';
+        document.getElementById('preview-grade-section').textContent =
+          txPreview.grade_section || 'AU-JRC Lab';
+
+        const listEl = document.getElementById('preview-items-list');
+        if (!items.length) {
+          listEl.innerHTML = '<p class="text-[11px] text-slate-500">No items listed on this record.</p>';
+          return;
+        }
+
+        listEl.innerHTML = items
+          .map(
+            (item) => `
+            <div class="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+              <div class="flex items-center gap-2 min-w-0">
+                <img
+                  src="${escapeHtml(item.image_url || `/images/equipment/${item.qr_code}.svg`)}"
+                  alt="${escapeHtml(item.name)}"
+                  class="w-8 h-8 object-contain bg-white rounded-lg border border-slate-200 p-0.5 shrink-0"
+                />
+                <div class="min-w-0">
+                  <p class="text-xs font-bold text-slate-900 truncate">${escapeHtml(item.name || 'Equipment')}</p>
+                  <p class="text-[10px] font-mono text-slate-500 truncate">${escapeHtml(item.storage_compartment || 'Lab Storage')}</p>
+                </div>
+              </div>
+              <span class="font-mono text-xs font-bold text-[#003087] shrink-0">${Number(item.quantity || 1)}×</span>
+            </div>
+          `
+          )
+          .join('');
+      }
+
+      function showLoginGateView() {
+        hideAllViews();
+        document.getElementById('return-preview-card').classList.remove('hidden');
+        document.getElementById('return-login-gate').classList.remove('hidden');
+      }
+
+      function showOwnershipMismatchView(student) {
+        hideAllViews();
+        document.getElementById('return-preview-card').classList.remove('hidden');
+
+        const sName = (student && student.full_name) || 'Student';
+        const sLrn = (student && student.student_id_lrn) || 'Unknown ID';
+
+        document.getElementById('mismatch-explanation-text').innerHTML =
+          `You are signed in as <strong>${escapeHtml(sName)}</strong> (<span class="font-mono font-bold">${escapeHtml(sLrn)}</span>), which does not match the student who borrowed this equipment. For laboratory accountability, you can only return apparatus checked out under your own verified account.`;
+        document.getElementById('mismatch-current-student').textContent = sName;
+        document.getElementById('mismatch-current-lrn').textContent = sLrn;
+
+        document.getElementById('ownership-mismatch-box').classList.remove('hidden');
+      }
+
+      function selectVerifiedReturnCondition(cond) {
+        selectedReturnCondition = cond;
+
+        ['Good', 'Damaged', 'Missing'].forEach((c) => {
+          const btn = document.getElementById(`return-cond-${c}`);
+          if (!btn) return;
+          if (c === cond) {
+            if (cond === 'Damaged') {
+              btn.className =
+                'min-h-[60px] py-2.5 px-2 rounded-xl border-2 border-amber-600 bg-amber-500 text-white font-heading font-extrabold text-xs flex flex-col items-center justify-center gap-0.5 shadow-sm transition-all cursor-pointer';
+            } else if (cond === 'Missing') {
+              btn.className =
+                'min-h-[60px] py-2.5 px-2 rounded-xl border-2 border-[#C8102E] bg-[#C8102E] text-white font-heading font-extrabold text-xs flex flex-col items-center justify-center gap-0.5 shadow-sm transition-all cursor-pointer';
+            } else {
+              btn.className =
+                'min-h-[60px] py-2.5 px-2 rounded-xl border-2 border-[#16A34A] bg-[#16A34A] text-white font-heading font-extrabold text-xs flex flex-col items-center justify-center gap-0.5 shadow-sm transition-all cursor-pointer';
+            }
+          } else {
+            btn.className =
+              'min-h-[60px] py-2.5 px-2 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-heading font-extrabold text-xs flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer';
+          }
+        });
+
+        const warnBox = document.getElementById('return-condition-warning');
+        if (!warnBox) return;
+
+        if (cond === 'Damaged') {
+          warnBox.className =
+            'p-3 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs font-medium leading-snug';
+          warnBox.innerHTML =
+            '<strong>▲ Station LED Caution Alert:</strong> Marking equipment as <strong>Damaged</strong> will automatically switch the Station LED Safety Status to <strong>YELLOW (CAUTION)</strong> and notify the Lab Coordinator for inspection.';
+          warnBox.classList.remove('hidden');
+        } else if (cond === 'Missing') {
+          warnBox.className =
+            'p-3 rounded-xl border border-red-300 bg-red-50 text-red-900 text-xs font-medium leading-snug';
+          warnBox.innerHTML =
+            '<strong>▲ Station LED Caution Alert:</strong> Marking equipment as <strong>Missing</strong> will keep stock deducted and automatically switch the Station LED Safety Status to <strong>YELLOW (CAUTION)</strong> for Lab Coordinator review.';
+          warnBox.classList.remove('hidden');
+        } else {
+          warnBox.className = 'hidden p-3 rounded-xl border text-xs font-medium leading-snug';
+          warnBox.innerHTML = '';
+        }
+      }
+
+      function showVerifiedOwnerForm(student, tx, preview) {
+        hideAllViews();
+
+        document.getElementById('verified-owner-name').textContent = student.full_name || '';
+        document.getElementById('verified-owner-lrn').textContent = student.student_id_lrn || '';
+        document.getElementById('verified-owner-strand').textContent = student.grade_section || 'STEM';
+
+        const activeTx = tx || preview || {};
+        const items = Array.isArray(activeTx.items) ? activeTx.items : [];
+        const totalUnits = items.reduce((s, i) => s + Number(i.quantity || 1), 0);
+
+        document.getElementById('owner-tx-code').textContent = activeTx.transaction_code || '';
+        document.getElementById('owner-tx-subject').textContent = activeTx.subject_activity
+          ? `${activeTx.subject_activity}${activeTx.teacher_name ? ` · ${activeTx.teacher_name}` : ''}`
+          : 'Laboratory Borrow Session';
+        document.getElementById('owner-items-count').textContent = `${totalUnits} Unit${totalUnits === 1 ? '' : 's'}`;
+
+        const itemsEl = document.getElementById('owner-items-list');
+        itemsEl.innerHTML = items
+          .map(
+            (item) => `
+            <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2.5">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <img
+                  src="${escapeHtml(item.image_url || `/images/equipment/${item.qr_code}.svg`)}"
+                  alt="${escapeHtml(item.name)}"
+                  class="w-10 h-10 object-contain bg-white rounded-lg border border-slate-200 p-1 shrink-0"
+                />
+                <div class="min-w-0">
+                  <p class="text-xs font-extrabold text-slate-900 font-heading truncate">${escapeHtml(item.name || 'Apparatus')}</p>
+                  <div class="flex items-center gap-1.5 flex-wrap mt-0.5 text-[10px] font-mono">
+                    ${item.qr_code ? `<span class="text-[#003087] font-bold">${escapeHtml(item.qr_code)}</span>` : ''}
+                    <span class="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-[#003087] font-semibold">
+                      Place in: ${escapeHtml(item.storage_compartment || 'Assigned Storage')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <span class="font-mono text-xs font-extrabold text-[#003087] shrink-0">${Number(item.quantity || 1)}×</span>
+            </div>
+          `
+          )
+          .join('');
+
+        document.getElementById('return-submit-error').classList.add('hidden');
+        selectVerifiedReturnCondition('Good');
+        document.getElementById('return-confirm-form').classList.remove('hidden');
+      }
+
+      function showCompletedReturnReceipt(tx, safetyStatus) {
+        hideAllViews();
+
+        const box = document.getElementById('return-completed-box');
+        const cond = (tx && tx.return_condition) || 'Good';
+        const isAlert = cond === 'Damaged' || cond === 'Missing';
+
+        // Style celebratory checkmark emerald (Good) vs amber (Damaged / Missing)
+        const ring1 = document.getElementById('receipt-ring-1');
+        const ring2 = document.getElementById('receipt-ring-2');
+        const sp1 = document.getElementById('receipt-sparkle-1');
+        const sp2 = document.getElementById('receipt-sparkle-2');
+        const circle = document.getElementById('receipt-check-circle');
+        const codePill = document.getElementById('receipt-tx-code');
+        const headingEl = document.getElementById('receipt-heading');
+        const subEl = document.getElementById('receipt-subtitle');
+
+        if (isAlert) {
+          box.className = 'bg-white border-2 border-amber-500 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl animate-card-pop';
+          if (ring1) ring1.className = 'absolute inset-0 rounded-full bg-amber-400/25 check-ring-pulse pointer-events-none';
+          if (ring2) ring2.className = 'absolute inset-2 rounded-full bg-amber-500/20 check-ring-pulse pointer-events-none';
+          if (sp1) sp1.className = 'absolute -top-1 right-2 text-amber-500 text-sm check-sparkle-1 pointer-events-none';
+          if (sp2) sp2.className = 'absolute bottom-1 -left-1 text-amber-400 text-xs check-sparkle-2 pointer-events-none';
+          if (circle) {
+            circle.className =
+              'relative w-16 h-16 rounded-full bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 text-white flex items-center justify-center shadow-xl shadow-amber-500/35 check-circle-pop border-2 border-white/80';
+          }
+          if (codePill) {
+            codePill.className =
+              'text-xs font-mono font-bold uppercase tracking-wider text-amber-900 bg-amber-50 py-1 px-3.5 rounded-full inline-block border border-amber-300 shadow-2xs';
+          }
+          if (headingEl) headingEl.textContent = `Return Logged (${cond})`;
+          if (subEl) {
+            subEl.textContent =
+              'Your verified return has been recorded and flagged for Laboratory Coordinator attention.';
+          }
+        } else {
+          box.className = 'bg-white border-2 border-emerald-500 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl animate-card-pop';
+          if (ring1) ring1.className = 'absolute inset-0 rounded-full bg-emerald-400/25 check-ring-pulse pointer-events-none';
+          if (ring2) ring2.className = 'absolute inset-2 rounded-full bg-emerald-500/20 check-ring-pulse pointer-events-none';
+          if (sp1) sp1.className = 'absolute -top-1 right-2 text-emerald-500 text-sm check-sparkle-1 pointer-events-none';
+          if (sp2) sp2.className = 'absolute bottom-1 -left-1 text-emerald-400 text-xs check-sparkle-2 pointer-events-none';
+          if (circle) {
+            circle.className =
+              'relative w-16 h-16 rounded-full bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-xl shadow-emerald-500/35 check-circle-pop border-2 border-white/80';
+          }
+          if (codePill) {
+            codePill.className =
+              'text-xs font-mono font-bold uppercase tracking-wider text-[#16A34A] bg-emerald-50 py-1 px-3.5 rounded-full inline-block border border-emerald-200 shadow-2xs';
+          }
+          if (headingEl) headingEl.textContent = 'Verified Equipment Return Completed!';
+          if (subEl) {
+            subEl.textContent =
+              'Your account ownership was verified and the laboratory inventory has been restored.';
+          }
+        }
+
+        // Re-trigger SVG stroke animation
+        const svgPath = box.querySelector('.check-svg-path');
+        if (circle) {
+          circle.style.animation = 'none';
+          void circle.offsetWidth;
+          circle.style.animation = '';
+        }
+        if (svgPath) {
+          svgPath.style.animation = 'none';
+          void svgPath.offsetWidth;
+          svgPath.style.animation = '';
+        }
+
+        const txCode = (tx && tx.transaction_code) || sessionToken || 'RETURNED';
+        const verifiedBy =
+          (tx && tx.returned_verified_by) ||
+          (currentStudent ? `${currentStudent.full_name} (${currentStudent.student_id_lrn})` : null) ||
+          (tx && tx.masked_student_name) ||
+          'Verified Borrower';
+        const condBadgeCls =
+          cond === 'Missing'
+            ? 'bg-red-50 text-[#C8102E] border-red-200'
+            : cond === 'Damaged'
+              ? 'bg-amber-50 text-amber-800 border-amber-300'
+              : 'bg-emerald-50 text-[#16A34A] border-emerald-200';
+
+        if (codePill) codePill.textContent = `Return Receipt · ${txCode}`;
+
+        document.getElementById('receipt-details').innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-slate-500">Transaction Code</span>
+            <span class="font-mono font-extrabold text-[#003087]">${escapeHtml(txCode)}</span>
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-slate-500">Verified By</span>
+            <span class="font-bold text-slate-900 text-right">${escapeHtml(verifiedBy)} <span class="text-[#16A34A]">✓</span></span>
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-slate-500">Condition</span>
+            <span class="px-2 py-0.5 rounded-full border font-mono text-[10px] font-bold ${condBadgeCls}">${escapeHtml(cond)}</span>
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-slate-500">Returned At</span>
+            <span class="font-mono text-[11px] text-slate-700">${escapeHtml(formatDateTime(tx && tx.time_out))}</span>
+          </div>
+          ${
+            tx && tx.return_notes
+              ? `<div class="pt-1.5 border-t border-slate-200 text-[11px] text-slate-700"><strong>Notes:</strong> ${escapeHtml(tx.return_notes)}</div>`
+              : ''
+          }
+        `;
+
+        const safetyNoticeEl = document.getElementById('receipt-safety-notice');
+        if (safetyNoticeEl) {
+          if (isAlert || (safetyStatus && (safetyStatus.level === 'CAUTION' || safetyStatus.level === 'UNSAFE'))) {
+            const levelText =
+              safetyStatus && safetyStatus.level === 'UNSAFE' ? 'RED (UNSAFE)' : 'YELLOW (CAUTION)';
+            safetyNoticeEl.textContent = `▲ Station LED Safety Status: ${levelText} — ${(safetyStatus && safetyStatus.message) || 'Lab Coordinator has been alerted to inspect this return.'}`;
+            safetyNoticeEl.classList.remove('hidden');
+          } else {
+            safetyNoticeEl.classList.add('hidden');
+          }
+        }
+
+        const items = Array.isArray(tx && tx.items) ? tx.items : [];
+        const itemsContainer = document.getElementById('receipt-items-list');
+        if (items.length > 0) {
+          itemsContainer.innerHTML = items
+            .map(
+              (item) => `
+              <div class="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                <div class="min-w-0">
+                  <p class="font-bold text-slate-900 truncate">${escapeHtml(item.name || 'Equipment')}</p>
+                  <p class="text-[10px] font-mono text-slate-500 truncate">${escapeHtml(item.storage_compartment || '')}</p>
+                </div>
+                <span class="font-mono font-bold text-[#003087] shrink-0">${Number(item.quantity || 1)}×</span>
+              </div>
+            `
+            )
+            .join('');
+        } else {
+          itemsContainer.innerHTML =
+            '<p class="text-[11px] text-slate-500">All borrowed items recorded as returned.</p>';
+        }
+
+        box.classList.remove('hidden');
+        box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      async function verifyStudentToken() {
+        const token = getStudentToken();
+        if (!token) return { ok: false };
+        try {
+          const res = await fetch('/api/students/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.student && data.student.status === 'approved') {
+            return { ok: true, student: data.student };
+          }
+          setStudentToken('');
+          return {
+            ok: false,
+            status: data.account_status || '',
+            error: data.error || '',
+            rejection_reason: data.rejection_reason || '',
+          };
+        } catch {
+          return { ok: false };
+        }
+      }
+
+      async function fetchReturnSession() {
+        if (!sessionToken) {
+          return { ok: false, status: 404, error: 'Missing Return QR session token.' };
+        }
+        const token = getStudentToken();
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        try {
+          const res = await fetch(`/api/kiosk/return-session/${encodeURIComponent(sessionToken)}`, { headers });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            return {
+              ok: false,
+              status: res.status,
+              error: data.error || (res.status === 410 ? 'This Return QR code has expired.' : 'Return QR session not found.'),
+            };
+          }
+          return { ok: true, data };
+        } catch {
+          return {
+            ok: false,
+            status: 0,
+            error: 'Unable to reach LabGuard+ server. Please verify you are connected to the laboratory Wi-Fi.',
+          };
+        }
+      }
+
+      function routeByState(sessionPayload, authResult) {
+        currentSessionData = sessionPayload;
+        const sess = sessionPayload.session || {};
+        const preview = sessionPayload.transaction_preview || {};
+
+        if (sess.status === 'expired') {
+          showSessionError(
+            'Return QR Session Expired',
+            'This Return Verification QR code has expired. Tap "Verify & Return" on the Kiosk touchscreen to generate a new QR code.'
+          );
+          return;
+        }
+
+        populatePreviewCard(preview, sess);
+
+        // If already completed, display receipt directly
+        if (sess.status === 'completed' || preview.status === 'Returned / Logged Out') {
+          const completedTx =
+            sessionPayload.transaction ||
+            sess.completed_transaction ||
+            preview;
+          showCompletedReturnReceipt(completedTx, sessionPayload.safety_status || null);
+          return;
+        }
+
+        if (!authResult || !authResult.ok || !authResult.student) {
+          currentStudent = null;
+          showLoginGateView();
+          if (authResult && authResult.status) {
+            showReturnLoginError(authResult.status, authResult.error, authResult.rejection_reason);
+          }
+          return;
+        }
+
+        currentStudent = authResult.student;
+
+        if (sessionPayload.is_owner === true) {
+          showVerifiedOwnerForm(currentStudent, sessionPayload.transaction || null, preview);
+        } else {
+          showOwnershipMismatchView(currentStudent);
+        }
+      }
+
+      async function initReturnPage() {
+        if (!sessionToken) {
+          showSessionError(
+            'Missing Return QR Token',
+            'Scan a Return Verification QR code from the LabGuard+ Kiosk touchscreen, or return your borrowed items directly inside My Student Account.'
+          );
+          return;
+        }
+
+        const [authResult, sessionRes] = await Promise.all([
+          verifyStudentToken(),
+          fetchReturnSession(),
+        ]);
+
+        if (!sessionRes.ok) {
+          const title =
+            sessionRes.status === 410
+              ? 'Return QR Session Expired'
+              : sessionRes.status === 0
+                ? 'Connection Error'
+                : 'Return QR Session Not Found';
+          showSessionError(title, sessionRes.error);
+          return;
+        }
+
+        routeByState(sessionRes.data, authResult);
+      }
+
+      async function handleReturnLogin(e) {
+        e.preventDefault();
+        hideReturnLoginError();
+
+        const identifier = (document.getElementById('return-login-identifier').value || '').trim();
+        const password = document.getElementById('return-login-password').value || '';
+        const btn = document.getElementById('return-login-btn');
+
+        if (!identifier || !password) {
+          showReturnLoginError('', 'Please enter your Student ID / LRN (or School Email) and password.');
+          return;
+        }
+
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Verifying Account...';
+        }
+
+        try {
+          const res = await fetch('/api/students/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, password }),
+          });
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok || !data.token || !data.student) {
+            showReturnLoginError(
+              data.account_status || '',
+              data.error || 'Invalid Student ID / Email or password.',
+              data.rejection_reason || ''
+            );
+            return;
+          }
+
+          setStudentToken(data.token);
+          document.getElementById('return-login-password').value = '';
+
+          // Re-fetch return session WITH the newly authenticated Bearer token to verify ownership
+          const sessionRes = await fetchReturnSession();
+          if (!sessionRes.ok) {
+            showSessionError(
+              sessionRes.status === 410 ? 'Return QR Session Expired' : 'Return Session Error',
+              sessionRes.error
+            );
+            return;
+          }
+
+          routeByState(sessionRes.data, { ok: true, student: data.student });
+        } catch {
+          showReturnLoginError('', 'Network error while signing in. Please check your lab Wi-Fi connection.');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Sign In & Verify Ownership →';
+          }
+        }
+      }
+
+      async function handleSwitchAccount() {
+        const token = getStudentToken();
+        if (token) {
+          try {
+            await fetch('/api/students/logout', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+          } catch {
+            // best-effort logout
+          }
+        }
+        setStudentToken('');
+        currentStudent = null;
+        hideReturnLoginError();
+        const pwInput = document.getElementById('return-login-password');
+        if (pwInput) pwInput.value = '';
+        showLoginGateView();
+        const idInput = document.getElementById('return-login-identifier');
+        if (idInput) idInput.focus();
+      }
+
+      async function submitVerifiedReturn(e) {
+        e.preventDefault();
+        const errBox = document.getElementById('return-submit-error');
+        errBox.classList.add('hidden');
+
+        const token = getStudentToken();
+        if (!token) {
+          showLoginGateView();
+          showReturnLoginError('', 'Please sign in with your verified student account to complete this return.');
+          return;
+        }
+
+        const notes = (document.getElementById('return-notes-input').value || '').trim();
+        const btn = document.getElementById('return-submit-btn');
+
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Confirming Verified Return...';
+        }
+
+        try {
+          const res = await fetch(
+            `/api/kiosk/return-session/${encodeURIComponent(sessionToken)}/complete`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                return_condition: selectedReturnCondition,
+                return_notes: notes,
+              }),
+            }
+          );
+          const data = await res.json().catch(() => ({}));
+
+          if (res.status === 401) {
+            setStudentToken('');
+            currentStudent = null;
+            showLoginGateView();
+            showReturnLoginError('', data.error || 'Your student session expired. Please sign in again.');
+            return;
+          }
+
+          if (res.status === 403 && data.ownership_mismatch) {
+            showOwnershipMismatchView(currentStudent);
+            return;
+          }
+
+          if (res.status === 403 && data.account_status) {
+            setStudentToken('');
+            currentStudent = null;
+            showLoginGateView();
+            showReturnLoginError(data.account_status, data.error, data.rejection_reason);
+            return;
+          }
+
+          if (!res.ok || !data.transaction) {
+            errBox.textContent = data.error || 'Could not complete verified equipment return.';
+            errBox.classList.remove('hidden');
+            return;
+          }
+
+          showCompletedReturnReceipt(data.transaction, data.safety_status || null);
+        } catch {
+          errBox.textContent = 'Network error while completing return. Please check your laboratory Wi-Fi.';
+          errBox.classList.remove('hidden');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Confirm Verified Equipment Return →';
+          }
+        }
+      }
+
+      initReturnPage();
+    </script>
+  </body>
+</html>
