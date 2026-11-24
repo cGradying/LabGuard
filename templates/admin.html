@@ -79,12 +79,13 @@
           </div>
 
           <div id="login-error" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-xs font-semibold text-red-600">
-            Invalid administrator credentials. Use lara.puertollano@arellano.edu.ph and password au-jrc-2026.
+            Invalid administrator email or password.
           </div>
 
           <button
+            id="admin-login-submit-btn"
             type="submit"
-            class="w-full py-3 px-4 bg-[#003087] hover:bg-[#002466] text-white text-sm font-heading font-bold rounded-lg transition-colors cursor-pointer"
+            class="w-full py-3 px-4 bg-[#003087] hover:bg-[#002466] disabled:opacity-60 text-white text-sm font-heading font-bold rounded-lg transition-colors cursor-pointer"
           >
             Sign In to PC Admin Console →
           </button>
@@ -141,6 +142,16 @@
             </button>
 
             <button
+              id="nav-tab-accounts"
+              type="button"
+              onclick="switchAdminTab('accounts')"
+              class="w-full px-3.5 py-2.5 rounded-lg text-left text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer flex items-center justify-between gap-2"
+            >
+              <span>Student Accounts</span>
+              <span id="sidebar-pending-badge" class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">0</span>
+            </button>
+
+            <button
               id="nav-tab-inventory"
               type="button"
               onclick="switchAdminTab('inventory')"
@@ -165,8 +176,8 @@
         <!-- Logged-In Admin Profile & Sign Out -->
         <div class="p-4 border-t border-slate-800 space-y-3">
           <div>
-            <p class="text-xs font-bold text-white truncate">Ms. Lara Marie A. Puertollano</p>
-            <p class="text-[11px] text-slate-400 truncate">Research Adviser · AU-JRC</p>
+            <p id="sidebar-admin-name" class="text-xs font-bold text-white truncate">Ms. Lara Marie A. Puertollano</p>
+            <p id="sidebar-admin-email" class="text-[11px] text-slate-400 truncate">lara.puertollano@arellano.edu.ph</p>
           </div>
           <button
             type="button"
@@ -278,6 +289,119 @@
                     </tr>
                   </thead>
                   <tbody id="admin-logs-tbody" class="divide-y divide-slate-200 text-xs"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============================================================= -->
+          <!-- TAB 2: STUDENT ACCOUNTS & SCHOOL ID APPROVAL                  -->
+          <!-- ============================================================= -->
+          <section id="tab-accounts-section" class="hidden space-y-4">
+            <!-- Summary Metric Strip -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div class="bg-white border border-amber-200 rounded-xl p-4">
+                <p class="text-[11px] font-mono uppercase tracking-wider text-amber-700 font-bold">Pending Approval</p>
+                <p id="acct-count-pending" class="text-2xl font-mono font-bold tabular-nums text-amber-600 mt-1">0</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">Awaiting School ID review</p>
+              </div>
+              <div class="bg-white border border-emerald-200 rounded-xl p-4">
+                <p class="text-[11px] font-mono uppercase tracking-wider text-emerald-700 font-bold">Approved</p>
+                <p id="acct-count-approved" class="text-2xl font-mono font-bold tabular-nums text-[#16A34A] mt-1">0</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">Verified &amp; active accounts</p>
+              </div>
+              <div class="bg-white border border-red-200 rounded-xl p-4">
+                <p class="text-[11px] font-mono uppercase tracking-wider text-red-700 font-bold">Rejected</p>
+                <p id="acct-count-rejected" class="text-2xl font-mono font-bold tabular-nums text-[#C8102E] mt-1">0</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">May re-submit clearer ID</p>
+              </div>
+              <div class="bg-white border border-slate-200 rounded-xl p-4">
+                <p class="text-[11px] font-mono uppercase tracking-wider text-slate-500 font-bold">Total Registered</p>
+                <p id="acct-count-total" class="text-2xl font-mono font-bold tabular-nums text-[#003087] mt-1">0</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">All student &amp; faculty records</p>
+              </div>
+            </div>
+
+            <!-- Action Status Feedback Banner -->
+            <div id="accounts-action-banner" class="hidden p-3 rounded-xl border text-xs font-semibold"></div>
+
+            <!-- Filter Pills & Real-Time Search Toolbar -->
+            <div class="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button
+                  id="acct-filter-pending"
+                  type="button"
+                  onclick="setStudentStatusFilter('pending')"
+                  class="px-3 py-1.5 text-xs font-heading font-bold rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+                >
+                  Pending
+                </button>
+                <button
+                  id="acct-filter-approved"
+                  type="button"
+                  onclick="setStudentStatusFilter('approved')"
+                  class="px-3 py-1.5 text-xs font-heading font-bold rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+                >
+                  Approved
+                </button>
+                <button
+                  id="acct-filter-rejected"
+                  type="button"
+                  onclick="setStudentStatusFilter('rejected')"
+                  class="px-3 py-1.5 text-xs font-heading font-bold rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+                >
+                  Rejected
+                </button>
+                <button
+                  id="acct-filter-suspended"
+                  type="button"
+                  onclick="setStudentStatusFilter('suspended')"
+                  class="px-3 py-1.5 text-xs font-heading font-bold rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+                >
+                  Suspended
+                </button>
+                <button
+                  id="acct-filter-all"
+                  type="button"
+                  onclick="setStudentStatusFilter('all')"
+                  class="px-3 py-1.5 text-xs font-heading font-bold rounded-lg border border-[#003087] bg-[#003087] text-white cursor-pointer transition-colors"
+                >
+                  All
+                </button>
+              </div>
+
+              <div class="flex items-center gap-2 flex-1 min-w-[240px] justify-end">
+                <input
+                  id="admin-student-search"
+                  type="text"
+                  oninput="renderStudentsTable()"
+                  placeholder="Search by Name, LRN, Email, or Strand..."
+                  class="flex-1 max-w-sm px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#003087] focus:bg-white"
+                />
+                <button
+                  type="button"
+                  onclick="fetchAdminStudents()"
+                  class="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer shrink-0"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            <!-- Student Accounts Table -->
+            <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="border-b border-slate-200 bg-slate-50 text-[11px] font-mono uppercase text-slate-500">
+                      <th class="py-3 px-4">School ID Photo</th>
+                      <th class="py-3 px-4">Student Details</th>
+                      <th class="py-3 px-4">Submitted</th>
+                      <th class="py-3 px-4">Account Status</th>
+                      <th class="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-students-tbody" class="divide-y divide-slate-200 text-xs"></tbody>
                 </table>
               </div>
             </div>
@@ -611,6 +735,191 @@
       </form>
     </div>
 
+    <!-- =================================================================== -->
+    <!-- ZOOMABLE SCHOOL ID VERIFICATION LIGHTBOX MODAL                      -->
+    <!-- =================================================================== -->
+    <div id="id-photo-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 flex items-center justify-center p-4">
+      <div class="bg-white border border-slate-200 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+        <!-- Lightbox Header -->
+        <div class="px-5 py-3.5 bg-[#0F172A] text-white flex items-center justify-between gap-4 border-b border-slate-800 shrink-0">
+          <div class="min-w-0">
+            <p class="text-[10px] font-mono uppercase tracking-wider text-[#F5A623] font-bold">
+              AU-JRC Laboratory Identity Check
+            </p>
+            <h3 class="text-base font-extrabold font-heading truncate">
+              School ID Verification Inspector
+            </h3>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              id="id-modal-zoom-btn"
+              type="button"
+              onclick="toggleIdPhotoZoom()"
+              class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-mono font-bold text-slate-200 cursor-pointer"
+            >
+              Zoom 150%
+            </button>
+            <button
+              type="button"
+              onclick="closeIdPhotoModal()"
+              class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white cursor-pointer"
+            >
+              ✕ Close
+            </button>
+          </div>
+        </div>
+
+        <!-- Side-by-Side High-Res ID Image & Submitted Credentials -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0 overflow-y-auto">
+          <div class="lg:col-span-7 bg-slate-900 p-4 flex items-center justify-center overflow-auto min-h-[280px] max-h-[70vh]">
+            <img
+              id="id-modal-img"
+              src=""
+              alt="Uploaded School ID"
+              onclick="toggleIdPhotoZoom()"
+              class="max-w-full max-h-[64vh] object-contain rounded-xl shadow-lg cursor-zoom-in transition-all"
+            />
+          </div>
+
+          <div class="lg:col-span-5 p-5 flex flex-col justify-between gap-4 bg-white border-t lg:border-t-0 lg:border-l border-slate-200">
+            <div class="space-y-3.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-mono uppercase tracking-wider text-slate-500 font-bold">
+                  Submitted Details
+                </span>
+                <span id="id-modal-status" class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold"></span>
+              </div>
+
+              <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5 text-xs">
+                <div>
+                  <p class="text-[10px] font-mono uppercase text-slate-400 font-bold">Full Name</p>
+                  <p id="id-modal-name" class="text-sm font-extrabold text-slate-900 font-heading mt-0.5"></p>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <p class="text-[10px] font-mono uppercase text-slate-400 font-bold">Student ID / LRN</p>
+                    <p id="id-modal-lrn" class="font-mono font-bold text-[#003087] mt-0.5"></p>
+                  </div>
+                  <div>
+                    <p class="text-[10px] font-mono uppercase text-slate-400 font-bold">Strand / Faculty</p>
+                    <p id="id-modal-strand" class="font-mono font-bold text-slate-800 mt-0.5"></p>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-[10px] font-mono uppercase text-slate-400 font-bold">School Email</p>
+                  <p id="id-modal-email" class="font-mono text-slate-700 mt-0.5 break-all"></p>
+                </div>
+                <div>
+                  <p class="text-[10px] font-mono uppercase text-slate-400 font-bold">Submitted</p>
+                  <p id="id-modal-submitted" class="font-mono text-slate-600 mt-0.5"></p>
+                </div>
+              </div>
+
+              <div id="id-modal-rejection-wrap" class="hidden p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-900">
+                <p class="font-mono text-[10px] font-bold uppercase text-red-700">Rejection Reason</p>
+                <p id="id-modal-rejection-reason" class="font-semibold mt-0.5"></p>
+              </div>
+
+              <div class="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-[11px] text-slate-700 leading-snug">
+                Confirm the uploaded School ID photo matches the student's Full Name, LRN, and AU-JRC affiliation before approving.
+              </div>
+            </div>
+
+            <!-- Direct Approval / Rejection Actions Inside Lightbox -->
+            <div id="id-modal-actions" class="pt-3 border-t border-slate-200 space-y-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- REJECTION REASON MODAL                                              -->
+    <!-- =================================================================== -->
+    <div id="reject-student-modal" class="hidden fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4">
+      <form
+        onsubmit="submitRejectStudent(event)"
+        class="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl"
+      >
+        <div class="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+          <div>
+            <p class="text-[10px] font-mono font-bold uppercase tracking-wider text-[#C8102E]">
+              Reject Registration
+            </p>
+            <h3 class="text-base font-extrabold text-slate-900 font-heading mt-0.5">
+              Provide Rejection Reason
+            </h3>
+            <p id="reject-modal-student-label" class="text-xs text-slate-500 mt-0.5"></p>
+          </div>
+          <button
+            type="button"
+            onclick="closeRejectModal()"
+            class="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+          >
+            ✕ Close
+          </button>
+        </div>
+
+        <div class="space-y-2">
+          <p class="text-[11px] font-bold text-slate-700">Quick Reason Presets:</p>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onclick="selectRejectPreset('Blurry / unreadable School ID photo')"
+              class="px-2.5 py-1.5 text-[11px] font-semibold bg-slate-100 hover:bg-red-50 hover:text-red-800 border border-slate-200 hover:border-red-200 rounded-lg cursor-pointer transition-colors text-left"
+            >
+              Blurry / unreadable School ID photo
+            </button>
+            <button
+              type="button"
+              onclick="selectRejectPreset('Name or LRN does not match School ID')"
+              class="px-2.5 py-1.5 text-[11px] font-semibold bg-slate-100 hover:bg-red-50 hover:text-red-800 border border-slate-200 hover:border-red-200 rounded-lg cursor-pointer transition-colors text-left"
+            >
+              Name or LRN does not match School ID
+            </button>
+            <button
+              type="button"
+              onclick="selectRejectPreset('Not an AU-JRC student/faculty ID')"
+              class="px-2.5 py-1.5 text-[11px] font-semibold bg-slate-100 hover:bg-red-50 hover:text-red-800 border border-slate-200 hover:border-red-200 rounded-lg cursor-pointer transition-colors text-left"
+            >
+              Not an AU-JRC student/faculty ID
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label for="reject-reason-input" class="block text-xs font-semibold text-slate-800 mb-1">
+            Reason Shown to Student *
+          </label>
+          <textarea
+            id="reject-reason-input"
+            rows="3"
+            required
+            placeholder="Explain why the School ID photo could not be approved..."
+            class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#C8102E] focus:bg-white"
+          ></textarea>
+        </div>
+
+        <div id="reject-modal-error" class="hidden p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs font-semibold text-red-700"></div>
+
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onclick="closeRejectModal()"
+            class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            id="reject-confirm-btn"
+            type="submit"
+            class="px-4 py-2 text-xs font-heading font-bold text-white bg-[#C8102E] hover:bg-[#a50d25] disabled:opacity-60 rounded-lg cursor-pointer"
+          >
+            Confirm Rejection
+          </button>
+        </div>
+      </form>
+    </div>
+
     <script>
       const PRESET_ICONS = [
         '/images/equipment/LG-EQ-001.svg',
@@ -630,6 +939,119 @@
       let transactionsList = [];
       let safetyStatus = { level: 'SAFE', message: '', updated_by: '' };
       let selectedImageUrl = '/images/equipment/LG-EQ-001.svg';
+      let studentAccountsList = [];
+      let studentAccountCounts = { total: 0, pending: 0, approved: 0, rejected: 0, suspended: 0 };
+      let studentStatusFilter = 'all';
+      let inspectedStudentId = null;
+      let rejectTargetStudentId = null;
+      let idPhotoZoomed = false;
+      let accountsBannerTimer = null;
+      let adminWs = null;
+      let adminWsReconnectTimer = null;
+
+      function escapeHtml(str) {
+        return String(str === null || str === undefined ? '' : str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function getAdminToken() {
+        return sessionStorage.getItem('labguard_admin_token') || '';
+      }
+
+      function getAdminInfo() {
+        try {
+          return JSON.parse(sessionStorage.getItem('labguard_admin_info') || 'null');
+        } catch {
+          return null;
+        }
+      }
+
+      function setAdminProfileUI(admin) {
+        const nameEl = document.getElementById('sidebar-admin-name');
+        const emailEl = document.getElementById('sidebar-admin-email');
+        if (nameEl) {
+          nameEl.textContent = (admin && admin.name) || 'Ms. Lara Marie A. Puertollano';
+        }
+        if (emailEl) {
+          emailEl.textContent = (admin && admin.email) || 'lara.puertollano@arellano.edu.ph';
+        }
+      }
+
+      function disconnectAdminSocket() {
+        if (adminWsReconnectTimer) {
+          clearTimeout(adminWsReconnectTimer);
+          adminWsReconnectTimer = null;
+        }
+        if (adminWs) {
+          try {
+            adminWs.onclose = null;
+            adminWs.onerror = null;
+            adminWs.onmessage = null;
+            adminWs.close();
+          } catch {
+            // ignore close errors
+          }
+          adminWs = null;
+        }
+      }
+
+      function clearAdminSessionAndShowLogin(message) {
+        sessionStorage.removeItem('labguard_admin_token');
+        sessionStorage.removeItem('labguard_admin_info');
+        sessionStorage.removeItem('labguard_admin_auth');
+        disconnectAdminSocket();
+        closeIdPhotoModal();
+        closeRejectModal();
+        const addEqModal = document.getElementById('add-eq-modal');
+        if (addEqModal) addEqModal.classList.add('hidden');
+        document.getElementById('admin-dashboard-shell').classList.add('hidden');
+        document.getElementById('admin-login-screen').classList.remove('hidden');
+
+        const errEl = document.getElementById('login-error');
+        if (errEl) {
+          if (message) {
+            errEl.textContent = message;
+            errEl.classList.remove('hidden');
+          } else {
+            errEl.classList.add('hidden');
+          }
+        }
+      }
+
+      async function adminFetch(url, options = {}) {
+        const token = getAdminToken();
+        const headers = new Headers(options.headers || {});
+        if (token) {
+          headers.set('Authorization', `Bearer ${token}`);
+        }
+        const res = await fetch(url, { ...options, headers });
+        if (res.status === 401) {
+          clearAdminSessionAndShowLogin('Session expired — please sign in again.');
+        }
+        return res;
+      }
+
+      function showAccountsBanner(msg, tone = 'success') {
+        const el = document.getElementById('accounts-action-banner');
+        if (!el) return;
+        if (tone === 'error') {
+          el.className = 'p-3 rounded-xl border border-red-200 bg-red-50 text-red-800 text-xs font-semibold';
+        } else if (tone === 'warn') {
+          el.className = 'p-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-xs font-semibold';
+        } else {
+          el.className = 'p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 text-xs font-semibold';
+        }
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        if (accountsBannerTimer) clearTimeout(accountsBannerTimer);
+        accountsBannerTimer = setTimeout(() => {
+          el.classList.add('hidden');
+        }, 6000);
+      }
 
       function openAddEquipmentModal() {
         switchAdminTab('inventory');
@@ -682,33 +1104,107 @@
         document.getElementById('login-error').classList.add('hidden');
       }
 
-      function handleAdminLogin(e) {
+      function enterAdminDashboard(admin) {
+        setAdminProfileUI(admin);
+        document.getElementById('admin-login-screen').classList.add('hidden');
+        document.getElementById('admin-dashboard-shell').classList.remove('hidden');
+        fetchAdminState();
+        fetchAdminStudents();
+        fetchHardwareStatus();
+        connectAdminSocket();
+      }
+
+      async function handleAdminLogin(e) {
         e.preventDefault();
         const email = (document.getElementById('login-email').value || '').trim().toLowerCase();
-        const pass = (document.getElementById('login-password').value || '').trim();
-        if (email.endsWith('@arellano.edu.ph') && pass.length >= 4) {
-          sessionStorage.setItem('labguard_admin_auth', '1');
-          document.getElementById('admin-login-screen').classList.add('hidden');
-          document.getElementById('admin-dashboard-shell').classList.remove('hidden');
-          fetchAdminState();
-          fetchHardwareStatus();
-        } else {
-          document.getElementById('login-error').classList.remove('hidden');
+        const password = document.getElementById('login-password').value || '';
+        const errEl = document.getElementById('login-error');
+        const submitBtn = document.getElementById('admin-login-submit-btn');
+
+        if (errEl) errEl.classList.add('hidden');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Signing In...';
+        }
+
+        try {
+          const res = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.token) {
+            if (errEl) {
+              errEl.textContent = data.error || 'Invalid administrator email or password.';
+              errEl.classList.remove('hidden');
+            }
+            return;
+          }
+
+          sessionStorage.setItem('labguard_admin_token', data.token);
+          sessionStorage.setItem(
+            'labguard_admin_info',
+            JSON.stringify(data.admin || { email, name: 'Laboratory Administrator' })
+          );
+          enterAdminDashboard(data.admin || { email, name: 'Laboratory Administrator' });
+        } catch {
+          if (errEl) {
+            errEl.textContent = 'Network error while connecting to the LabGuard+ server.';
+            errEl.classList.remove('hidden');
+          }
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Sign In to PC Admin Console →';
+          }
         }
       }
 
-      function handleAdminLogout() {
-        sessionStorage.removeItem('labguard_admin_auth');
-        document.getElementById('admin-dashboard-shell').classList.add('hidden');
-        document.getElementById('admin-login-screen').classList.remove('hidden');
+      async function handleAdminLogout() {
+        const token = getAdminToken();
+        if (token) {
+          try {
+            await fetch('/api/admin/logout', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+          } catch {
+            // best-effort logout
+          }
+        }
+        clearAdminSessionAndShowLogin();
       }
 
-      if (sessionStorage.getItem('labguard_admin_auth') === '1') {
-        document.getElementById('admin-login-screen').classList.add('hidden');
-        document.getElementById('admin-dashboard-shell').classList.remove('hidden');
+      async function verifyExistingAdminSession() {
+        const token = getAdminToken();
+        if (!token) {
+          return;
+        }
+        try {
+          const res = await fetch('/api/admin/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok) {
+            clearAdminSessionAndShowLogin(
+              res.status === 401 ? 'Session expired — please sign in again.' : ''
+            );
+            return;
+          }
+          const data = await res.json().catch(() => ({}));
+          const admin = data.admin || getAdminInfo() || {
+            email: 'lara.puertollano@arellano.edu.ph',
+            name: 'Ms. Lara Marie A. Puertollano',
+          };
+          sessionStorage.setItem('labguard_admin_info', JSON.stringify(admin));
+          enterAdminDashboard(admin);
+        } catch {
+          clearAdminSessionAndShowLogin();
+        }
       }
 
       async function fetchAdminState() {
+        if (!getAdminToken()) return;
         try {
           const res = await fetch('/api/state');
           if (!res.ok) return;
@@ -725,29 +1221,507 @@
         }
       }
 
+      async function fetchAdminStudents() {
+        if (!getAdminToken()) return;
+        try {
+          const res = await adminFetch('/api/admin/students');
+          if (!res || !res.ok) return;
+          const data = await res.json();
+          studentAccountsList = data.students || [];
+          studentAccountCounts = data.counts || {
+            total: studentAccountsList.length,
+            pending: studentAccountsList.filter((s) => s.status === 'pending').length,
+            approved: studentAccountsList.filter((s) => s.status === 'approved').length,
+            rejected: studentAccountsList.filter((s) => s.status === 'rejected').length,
+            suspended: studentAccountsList.filter((s) => s.status === 'suspended').length,
+          };
+          renderStudentAccountMetrics();
+          renderStudentsTable();
+
+          // Keep lightbox synced if currently inspecting a student
+          if (inspectedStudentId !== null) {
+            const updated = studentAccountsList.find((s) => s.id === inspectedStudentId);
+            if (updated) {
+              populateIdPhotoModal(updated);
+            } else {
+              closeIdPhotoModal();
+            }
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      function renderStudentAccountMetrics() {
+        const pending = Number(studentAccountCounts.pending || 0);
+        const approved = Number(studentAccountCounts.approved || 0);
+        const rejected = Number(studentAccountCounts.rejected || 0);
+        const total = Number(studentAccountCounts.total || 0);
+
+        const elPending = document.getElementById('acct-count-pending');
+        const elApproved = document.getElementById('acct-count-approved');
+        const elRejected = document.getElementById('acct-count-rejected');
+        const elTotal = document.getElementById('acct-count-total');
+        if (elPending) elPending.textContent = pending;
+        if (elApproved) elApproved.textContent = approved;
+        if (elRejected) elRejected.textContent = rejected;
+        if (elTotal) elTotal.textContent = total;
+
+        const badge = document.getElementById('sidebar-pending-badge');
+        if (badge) {
+          if (pending > 0) {
+            badge.textContent = `${pending} pending`;
+            badge.className =
+              'font-mono text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#F5A623] text-slate-950 shrink-0';
+          } else {
+            badge.textContent = '0';
+            badge.className =
+              'font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0';
+          }
+        }
+      }
+
+      function setStudentStatusFilter(status) {
+        studentStatusFilter = status;
+        ['pending', 'approved', 'rejected', 'suspended', 'all'].forEach((key) => {
+          const btn = document.getElementById(`acct-filter-${key}`);
+          if (!btn) return;
+          if (key === status) {
+            btn.className =
+              'px-3 py-1.5 text-xs font-heading font-bold rounded-lg border border-[#003087] bg-[#003087] text-white cursor-pointer transition-colors';
+          } else {
+            btn.className =
+              'px-3 py-1.5 text-xs font-heading font-bold rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors';
+          }
+        });
+        renderStudentsTable();
+      }
+
+      function formatAccountDate(isoStr) {
+        if (!isoStr) return '—';
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return String(isoStr);
+        return `${d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} · ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      }
+
+      function getStatusPillMeta(status) {
+        const st = (status || '').toLowerCase();
+        if (st === 'approved') {
+          return {
+            label: '● Approved',
+            cls: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-emerald-50 text-[#16A34A] border border-emerald-200',
+          };
+        }
+        if (st === 'rejected') {
+          return {
+            label: '✕ Rejected',
+            cls: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-red-50 text-[#C8102E] border border-red-200',
+          };
+        }
+        if (st === 'suspended') {
+          return {
+            label: '▲ Suspended',
+            cls: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-slate-100 text-red-700 border border-slate-300',
+          };
+        }
+        return {
+          label: '● Pending Verification',
+          cls: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-300',
+        };
+      }
+
+      function getAuthedIdPhotoUrl(student) {
+        const token = getAdminToken();
+        const base = student.id_photo_url || `/api/admin/students/${student.id}/id-photo`;
+        const sep = base.includes('?') ? '&' : '?';
+        const ver = student.updated_at ? `&v=${encodeURIComponent(student.updated_at)}` : '';
+        return `${base}${sep}token=${encodeURIComponent(token)}${ver}`;
+      }
+
+      function renderStudentsTable() {
+        const tbody = document.getElementById('admin-students-tbody');
+        if (!tbody) return;
+        const q = (document.getElementById('admin-student-search')?.value || '').toLowerCase().trim();
+
+        const statusOrder = { pending: 0, approved: 1, rejected: 2, suspended: 3 };
+        const filtered = studentAccountsList
+          .filter((s) => {
+            if (studentStatusFilter !== 'all' && s.status !== studentStatusFilter) return false;
+            if (!q) return true;
+            return (
+              (s.full_name || '').toLowerCase().includes(q) ||
+              (s.student_id_lrn || '').toLowerCase().includes(q) ||
+              (s.school_email || '').toLowerCase().includes(q) ||
+              (s.grade_section || '').toLowerCase().includes(q)
+            );
+          })
+          .sort((a, b) => {
+            const oa = statusOrder[a.status] ?? 9;
+            const ob = statusOrder[b.status] ?? 9;
+            if (oa !== ob) return oa - ob;
+            return (b.id || 0) - (a.id || 0);
+          });
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="5" class="py-10 px-4 text-center text-xs text-slate-500">
+                No student accounts match the current filter.
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = filtered
+          .map((s) => {
+            const pill = getStatusPillMeta(s.status);
+            const photoUrl = getAuthedIdPhotoUrl(s);
+
+            let actionButtons = '';
+            if (s.status === 'pending') {
+              actionButtons = `
+                <button type="button" onclick="approveStudentAccount(${s.id})" class="px-2.5 py-1.5 text-[11px] font-heading font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-md cursor-pointer">Approve</button>
+                <button type="button" onclick="openRejectModal(${s.id})" class="px-2.5 py-1.5 text-[11px] font-heading font-bold text-white bg-[#C8102E] hover:bg-[#a50d25] rounded-md cursor-pointer">Reject</button>
+                <button type="button" onclick="openIdPhotoModal(${s.id})" class="px-2.5 py-1.5 text-[11px] font-semibold text-[#003087] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md cursor-pointer">Inspect ID</button>
+              `;
+            } else if (s.status === 'approved') {
+              actionButtons = `
+                <button type="button" onclick="suspendStudentAccount(${s.id})" class="px-2.5 py-1.5 text-[11px] font-heading font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-md cursor-pointer">Suspend</button>
+                <button type="button" onclick="openIdPhotoModal(${s.id})" class="px-2.5 py-1.5 text-[11px] font-semibold text-[#003087] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md cursor-pointer">Inspect ID</button>
+              `;
+            } else {
+              actionButtons = `
+                <button type="button" onclick="approveStudentAccount(${s.id})" class="px-2.5 py-1.5 text-[11px] font-heading font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-md cursor-pointer">Approve</button>
+                <button type="button" onclick="deleteStudentAccount(${s.id})" class="px-2.5 py-1.5 text-[11px] font-semibold text-[#C8102E] bg-red-50 hover:bg-red-100 border border-red-200 rounded-md cursor-pointer">Delete</button>
+                <button type="button" onclick="openIdPhotoModal(${s.id})" class="px-2.5 py-1.5 text-[11px] font-semibold text-[#003087] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md cursor-pointer">Inspect ID</button>
+              `;
+            }
+
+            return `
+              <tr class="hover:bg-slate-50/80 align-middle">
+                <td class="py-3 px-4 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onclick="openIdPhotoModal(${s.id})"
+                    class="group relative block w-24 h-16 rounded-lg overflow-hidden border border-slate-300 bg-slate-100 cursor-pointer shadow-2xs"
+                    title="Click to inspect full School ID"
+                  >
+                    <img
+                      src="${photoUrl}"
+                      alt="School ID of ${escapeHtml(s.full_name)}"
+                      class="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                    <span class="absolute inset-x-0 bottom-0 bg-slate-900/75 text-white text-[9px] font-mono font-bold py-0.5 text-center group-hover:bg-[#003087]">
+                      Zoom ID
+                    </span>
+                  </button>
+                </td>
+                <td class="py-3 px-4">
+                  <p class="font-bold text-slate-900 text-xs">${escapeHtml(s.full_name)}</p>
+                  <p class="font-mono text-[11px] text-[#003087] font-semibold mt-0.5">
+                    ${escapeHtml(s.student_id_lrn)}
+                    <span class="ml-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 text-[10px]">${escapeHtml(s.grade_section)}</span>
+                  </p>
+                  <p class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(s.school_email)}</p>
+                </td>
+                <td class="py-3 px-4 whitespace-nowrap font-mono text-[11px] text-slate-600">
+                  <p>${escapeHtml(formatAccountDate(s.created_at))}</p>
+                  ${
+                    s.reviewed_by
+                      ? `<p class="text-[10px] text-slate-400 mt-0.5">Reviewed: ${escapeHtml(s.reviewed_by)}</p>`
+                      : ''
+                  }
+                </td>
+                <td class="py-3 px-4">
+                  <span class="${pill.cls}">${pill.label}</span>
+                  ${
+                    s.status === 'rejected' && s.rejection_reason
+                      ? `<p class="text-[11px] text-red-700 mt-1 max-w-xs leading-snug">Reason: ${escapeHtml(s.rejection_reason)}</p>`
+                      : ''
+                  }
+                </td>
+                <td class="py-3 px-4 text-right whitespace-nowrap">
+                  <div class="inline-flex items-center gap-1.5">
+                    ${actionButtons}
+                  </div>
+                </td>
+              </tr>
+            `;
+          })
+          .join('');
+      }
+
+      function populateIdPhotoModal(student) {
+        const imgEl = document.getElementById('id-modal-img');
+        const statusEl = document.getElementById('id-modal-status');
+        const nameEl = document.getElementById('id-modal-name');
+        const lrnEl = document.getElementById('id-modal-lrn');
+        const strandEl = document.getElementById('id-modal-strand');
+        const emailEl = document.getElementById('id-modal-email');
+        const subEl = document.getElementById('id-modal-submitted');
+        const rejWrap = document.getElementById('id-modal-rejection-wrap');
+        const rejReason = document.getElementById('id-modal-rejection-reason');
+        const actionsEl = document.getElementById('id-modal-actions');
+
+        if (imgEl) imgEl.src = getAuthedIdPhotoUrl(student);
+        const pill = getStatusPillMeta(student.status);
+        if (statusEl) {
+          statusEl.className = pill.cls;
+          statusEl.textContent = pill.label;
+        }
+        if (nameEl) nameEl.textContent = student.full_name || '';
+        if (lrnEl) lrnEl.textContent = student.student_id_lrn || '';
+        if (strandEl) strandEl.textContent = student.grade_section || '';
+        if (emailEl) emailEl.textContent = student.school_email || '';
+        if (subEl) subEl.textContent = formatAccountDate(student.created_at);
+
+        if (rejWrap && rejReason) {
+          if (student.status === 'rejected' && student.rejection_reason) {
+            rejReason.textContent = student.rejection_reason;
+            rejWrap.classList.remove('hidden');
+          } else {
+            rejWrap.classList.add('hidden');
+          }
+        }
+
+        if (actionsEl) {
+          const buttons = [];
+          if (student.status !== 'approved') {
+            buttons.push(`
+              <button
+                type="button"
+                onclick="approveStudentAccount(${student.id}, true)"
+                class="w-full py-2.5 px-4 bg-[#16A34A] hover:bg-emerald-700 text-white text-xs font-heading font-extrabold rounded-xl shadow-xs cursor-pointer"
+              >
+                Approve Account
+              </button>
+            `);
+          }
+          if (student.status === 'approved') {
+            buttons.push(`
+              <button
+                type="button"
+                onclick="suspendStudentAccount(${student.id}, true)"
+                class="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white text-xs font-heading font-extrabold rounded-xl shadow-xs cursor-pointer"
+              >
+                Suspend Account
+              </button>
+            `);
+          }
+          buttons.push(`
+            <button
+              type="button"
+              onclick="openRejectFromLightbox(${student.id})"
+              class="w-full py-2.5 px-4 bg-[#C8102E] hover:bg-[#a50d25] text-white text-xs font-heading font-extrabold rounded-xl shadow-xs cursor-pointer"
+            >
+              Reject with Reason
+            </button>
+          `);
+          actionsEl.innerHTML = buttons.join('');
+        }
+      }
+
+      function openIdPhotoModal(studentId) {
+        const student = studentAccountsList.find((s) => s.id === studentId);
+        if (!student) return;
+        inspectedStudentId = student.id;
+        idPhotoZoomed = false;
+        applyIdPhotoZoomStyle();
+        populateIdPhotoModal(student);
+        document.getElementById('id-photo-modal').classList.remove('hidden');
+      }
+
+      function closeIdPhotoModal() {
+        inspectedStudentId = null;
+        idPhotoZoomed = false;
+        applyIdPhotoZoomStyle();
+        const modal = document.getElementById('id-photo-modal');
+        if (modal) modal.classList.add('hidden');
+      }
+
+      function applyIdPhotoZoomStyle() {
+        const imgEl = document.getElementById('id-modal-img');
+        const btn = document.getElementById('id-modal-zoom-btn');
+        if (!imgEl) return;
+        if (idPhotoZoomed) {
+          imgEl.className = 'w-[150%] max-w-none object-contain rounded-xl shadow-lg cursor-zoom-out transition-all';
+          if (btn) btn.textContent = 'Fit to View';
+        } else {
+          imgEl.className = 'max-w-full max-h-[64vh] object-contain rounded-xl shadow-lg cursor-zoom-in transition-all';
+          if (btn) btn.textContent = 'Zoom 150%';
+        }
+      }
+
+      function toggleIdPhotoZoom() {
+        idPhotoZoomed = !idPhotoZoomed;
+        applyIdPhotoZoomStyle();
+      }
+
+      function openRejectFromLightbox(studentId) {
+        closeIdPhotoModal();
+        openRejectModal(studentId);
+      }
+
+      function openRejectModal(studentId) {
+        const student = studentAccountsList.find((s) => s.id === studentId);
+        if (!student) return;
+        rejectTargetStudentId = student.id;
+        const label = document.getElementById('reject-modal-student-label');
+        const input = document.getElementById('reject-reason-input');
+        const err = document.getElementById('reject-modal-error');
+        if (label) label.textContent = `${student.full_name} (${student.student_id_lrn})`;
+        if (input) input.value = student.rejection_reason || '';
+        if (err) err.classList.add('hidden');
+        document.getElementById('reject-student-modal').classList.remove('hidden');
+        if (input) input.focus();
+      }
+
+      function closeRejectModal() {
+        rejectTargetStudentId = null;
+        const modal = document.getElementById('reject-student-modal');
+        if (modal) modal.classList.add('hidden');
+      }
+
+      function selectRejectPreset(reason) {
+        const input = document.getElementById('reject-reason-input');
+        if (input) {
+          input.value = reason;
+          input.focus();
+        }
+      }
+
+      async function approveStudentAccount(studentId, closeLightbox = false) {
+        const res = await adminFetch(`/api/admin/students/${studentId}/approve`, {
+          method: 'POST',
+        });
+        if (!res || res.status === 401) return;
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showAccountsBanner(data.error || 'Could not approve student account.', 'error');
+          return;
+        }
+        if (closeLightbox) closeIdPhotoModal();
+        const st = data.student || {};
+        showAccountsBanner(
+          `Approved ${st.full_name || 'student'} (${st.student_id_lrn || studentId}). Account is now active.`,
+          'success'
+        );
+        await fetchAdminStudents();
+      }
+
+      async function submitRejectStudent(e) {
+        e.preventDefault();
+        if (rejectTargetStudentId === null) return;
+        const input = document.getElementById('reject-reason-input');
+        const err = document.getElementById('reject-modal-error');
+        const btn = document.getElementById('reject-confirm-btn');
+        const reason = (input && input.value ? input.value : '').trim();
+
+        if (!reason) {
+          if (err) {
+            err.textContent = 'Please provide a rejection reason for the student.';
+            err.classList.remove('hidden');
+          }
+          return;
+        }
+        if (err) err.classList.add('hidden');
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Rejecting...';
+        }
+
+        try {
+          const res = await adminFetch(`/api/admin/students/${rejectTargetStudentId}/reject`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason }),
+          });
+          if (!res || res.status === 401) return;
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            if (err) {
+              err.textContent = data.error || 'Could not reject registration.';
+              err.classList.remove('hidden');
+            }
+            return;
+          }
+          const st = data.student || {};
+          closeRejectModal();
+          showAccountsBanner(
+            `Rejected ${st.full_name || 'student'} (${st.student_id_lrn || ''}) — "${reason}".`,
+            'warn'
+          );
+          await fetchAdminStudents();
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Confirm Rejection';
+          }
+        }
+      }
+
+      async function suspendStudentAccount(studentId, closeLightbox = false) {
+        const res = await adminFetch(`/api/admin/students/${studentId}/suspend`, {
+          method: 'POST',
+        });
+        if (!res || res.status === 401) return;
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showAccountsBanner(data.error || 'Could not suspend student account.', 'error');
+          return;
+        }
+        if (closeLightbox) closeIdPhotoModal();
+        const st = data.student || {};
+        showAccountsBanner(
+          `Suspended ${st.full_name || 'student'} (${st.student_id_lrn || studentId}). Active sessions revoked.`,
+          'warn'
+        );
+        await fetchAdminStudents();
+      }
+
+      async function deleteStudentAccount(studentId) {
+        const res = await adminFetch(`/api/admin/students/${studentId}`, {
+          method: 'DELETE',
+        });
+        if (!res || res.status === 401) return;
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showAccountsBanner(data.error || 'Could not delete student account.', 'error');
+          return;
+        }
+        if (inspectedStudentId === studentId) closeIdPhotoModal();
+        showAccountsBanner('Student account and uploaded School ID photo deleted.', 'warn');
+        await fetchAdminStudents();
+      }
+
       function switchAdminTab(tab) {
         const titles = {
           logs: 'Student Borrow Logs',
+          accounts: 'Student Accounts & ID Approval',
           inventory: 'Kiosk Lab Items (Add / Remove)',
           safety: 'LED Safety Display',
         };
         document.getElementById('breadcrumb-current').textContent = titles[tab] || 'Dashboard';
 
-        ['logs', 'inventory', 'safety'].forEach((t) => {
+        ['logs', 'accounts', 'inventory', 'safety'].forEach((t) => {
           const sec = document.getElementById(`tab-${t}-section`);
           const nav = document.getElementById(`nav-tab-${t}`);
+          if (!sec || !nav) return;
           if (t === tab) {
             sec.classList.remove('hidden');
             nav.className =
-              'w-full px-3.5 py-2.5 rounded-lg text-left text-xs font-semibold transition-colors cursor-pointer flex items-center justify-between bg-[#003087] text-white';
+              'w-full px-3.5 py-2.5 rounded-lg text-left text-xs font-semibold transition-colors cursor-pointer flex items-center justify-between gap-2 bg-[#003087] text-white';
           } else {
             sec.classList.add('hidden');
             nav.className =
-              'w-full px-3.5 py-2.5 rounded-lg text-left text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer flex items-center justify-between';
+              'w-full px-3.5 py-2.5 rounded-lg text-left text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer flex items-center justify-between gap-2';
           }
         });
 
-        if (tab === 'safety') {
+        if (tab === 'accounts') {
+          fetchAdminStudents();
+        } else if (tab === 'safety') {
           fetchHardwareStatus();
         }
       }
@@ -976,7 +1950,7 @@
       }
 
       async function markReturned(txId) {
-        await fetch('/api/kiosk/return', {
+        const res = await adminFetch('/api/kiosk/return', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -985,26 +1959,29 @@
             return_notes: 'Checked in via Admin Dashboard',
           }),
         });
+        if (!res || res.status === 401) return;
         fetchAdminState();
       }
 
       async function adjustStock(eqId, nextTotal) {
-        await fetch(`/api/admin/equipment/${eqId}`, {
+        const res = await adminFetch(`/api/admin/equipment/${eqId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ total_qty: Math.max(1, nextTotal) }),
         });
+        if (!res || res.status === 401) return;
         fetchAdminState();
       }
 
       async function deleteEquipment(eqId) {
-        await fetch(`/api/admin/equipment/${eqId}`, { method: 'DELETE' });
+        const res = await adminFetch(`/api/admin/equipment/${eqId}`, { method: 'DELETE' });
+        if (!res || res.status === 401) return;
         fetchAdminState();
       }
 
       async function submitNewEquipment(e) {
         e.preventDefault();
-        await fetch('/api/admin/equipment', {
+        const res = await adminFetch('/api/admin/equipment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1018,28 +1995,37 @@
             image_url: selectedImageUrl,
           }),
         });
+        if (!res || res.status === 401) return;
         document.getElementById('new-eq-name').value = '';
         document.getElementById('add-eq-modal').classList.add('hidden');
         fetchAdminState();
       }
 
       async function updateSafetyStatus(level, customMessage) {
-        await fetch('/api/admin/safety-status', {
+        const admin = getAdminInfo();
+        const updatedBy =
+          admin && admin.name
+            ? `${admin.name} (PC Console)`
+            : 'Ms. Lara Marie A. Puertollano (PC Console)';
+        const res = await adminFetch('/api/admin/safety-status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             level,
             message: customMessage || '',
-            updated_by: 'Ms. Lara Marie A. Puertollano (PC Console)',
+            updated_by: updatedBy,
           }),
         });
+        if (!res || res.status === 401) return;
         fetchAdminState();
         fetchHardwareStatus();
       }
 
       async function resetDemoData() {
-        await fetch('/api/reset', { method: 'POST' });
+        const res = await adminFetch('/api/reset', { method: 'POST' });
+        if (!res || res.status === 401) return;
         fetchAdminState();
+        fetchAdminStudents();
       }
 
       function formatCsvDate(val) {
@@ -1209,10 +2195,8 @@
         URL.revokeObjectURL(a.href);
       }
 
-      let adminWs = null;
-      let adminWsReconnectTimer = null;
-
       function scheduleAdminSocketReconnect(delayMs = 3500) {
+        if (!getAdminToken()) return;
         if (adminWsReconnectTimer) clearTimeout(adminWsReconnectTimer);
         adminWsReconnectTimer = setTimeout(() => {
           adminWsReconnectTimer = null;
@@ -1221,6 +2205,7 @@
       }
 
       function connectAdminSocket() {
+        if (!getAdminToken()) return;
         try {
           if (adminWs && (adminWs.readyState === WebSocket.OPEN || adminWs.readyState === WebSocket.CONNECTING)) {
             return;
@@ -1229,8 +2214,23 @@
           const ws = new WebSocket(`${proto}//${window.location.host}/ws/kiosk`);
           adminWs = ws;
 
-          ws.onmessage = () => {
-            fetchAdminState();
+          ws.onmessage = (evt) => {
+            if (!getAdminToken()) return;
+            let eventName = '';
+            try {
+              const payload = JSON.parse(evt.data);
+              eventName = payload && payload.event ? payload.event : '';
+            } catch {
+              eventName = '';
+            }
+
+            if (eventName === 'accounts_updated' || eventName === 'data_updated' || !eventName) {
+              fetchAdminState();
+              fetchAdminStudents();
+            } else if (eventName === 'state_sync') {
+              fetchAdminState();
+            }
+
             const safetySec = document.getElementById('tab-safety-section');
             if (safetySec && !safetySec.classList.contains('hidden')) {
               fetchHardwareStatus();
@@ -1253,15 +2253,30 @@
         }
       }
 
-      fetchAdminState();
-      fetchHardwareStatus();
-      connectAdminSocket();
+      document.addEventListener('keydown', (evt) => {
+        if (evt.key === 'Escape') {
+          if (rejectTargetStudentId !== null) {
+            closeRejectModal();
+          } else if (inspectedStudentId !== null) {
+            closeIdPhotoModal();
+          } else {
+            const addModal = document.getElementById('add-eq-modal');
+            if (addModal && !addModal.classList.contains('hidden')) {
+              addModal.classList.add('hidden');
+            }
+          }
+        }
+      });
+
+      verifyExistingAdminSession();
     </script>
 
     <!-- Discreet Prototype Route Helper -->
     <div id="proto-route-helper" class="fixed bottom-3 right-3 z-50 bg-slate-900/90 text-white border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg flex items-center gap-2.5">
       <span class="font-mono text-[11px] text-slate-400">Preview Routes:</span>
       <a href="/kiosk" class="font-medium text-white hover:text-[#F5A623] underline">kiosk.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/register" class="font-medium text-white hover:text-[#F5A623] underline">student_register.html</a>
       <span class="text-slate-600">·</span>
       <a href="/student/checkout/DEMO-QR" class="font-medium text-white hover:text-[#F5A623] underline">student_form.html</a>
       <span class="text-slate-600">·</span>

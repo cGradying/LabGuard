@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>LabGuard+ Student Registration — Arellano University Jose Rizal Campus</title>
+    <link rel="stylesheet" href="/css/labguard.css" />
+    <style>
+      body {
+        font-family: 'DM Sans', 'DejaVu Sans', system-ui, sans-serif;
+        color: #0f172a;
+        -webkit-tap-highlight-color: transparent;
+      }
+      h1, h2, h3, h4, .font-heading {
+        font-family: 'Plus Jakarta Sans', 'DejaVu Sans', system-ui, -apple-system, sans-serif;
+      }
+      .font-mono {
+        font-family: 'JetBrains Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
+        font-variant-numeric: tabular-nums;
+      }
+      .tabular-nums {
+        font-variant-numeric: tabular-nums;
+      }
+      @keyframes popInCard {
+        0% {
+          opacity: 0;
+          transform: translateY(14px) scale(0.97);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      .animate-card-pop {
+        animation: popInCard 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+    </style>
+  </head>
+  <!-- On phones (<640px): native full-bleed viewport. On desktop (>=640px): dark studio backdrop showcasing smartphone bezel -->
+  <body class="min-h-screen bg-[#F8FAFC] sm:bg-slate-900 sm:py-8 sm:px-4 flex flex-col items-center justify-center">
+    <!-- PC Context Label (Hidden on actual phones) -->
+    <div class="hidden sm:flex items-center justify-between w-full max-w-[420px] mb-3 px-2 text-xs text-slate-300">
+      <span class="font-mono font-semibold text-[#F5A623]">
+        Mobile Student Registration (QR Scan)
+      </span>
+      <a href="/kiosk" class="text-slate-300 hover:text-white underline">
+        ← Back to Kiosk LCD
+      </a>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- SMARTPHONE DEVICE FRAME ON PC / NATIVE FULL-SCREEN ON MOBILE PHONE  -->
+    <!-- =================================================================== -->
+    <div
+      class="w-full max-w-[420px] bg-[#F8FAFC] min-h-screen sm:min-h-[820px] sm:max-h-[880px] sm:rounded-[44px] sm:border-[10px] sm:border-slate-800 sm:shadow-2xl flex flex-col overflow-hidden relative"
+    >
+      <!-- Phone Status Bar & Speaker Notch (Visible on PC Phone Frame) -->
+      <div class="hidden sm:flex items-center justify-between bg-[#003087] text-white px-6 pt-2.5 pb-1 text-[11px] font-mono shrink-0">
+        <span>9:41</span>
+        <div class="w-24 h-4 bg-slate-950 rounded-full"></div>
+        <span>5G · 100%</span>
+      </div>
+
+      <!-- Mobile Top App Bar with Official AU Seal -->
+      <header class="bg-[#003087] text-white px-4 py-3 flex items-center justify-between gap-3 border-b border-white/15 shrink-0 shadow-xs">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <img
+            src="/images/au_seal.jpg"
+            alt="Arellano University"
+            class="w-8 h-8 object-contain rounded-full bg-white p-0.5 shadow-xs shrink-0"
+          />
+          <div class="min-w-0">
+            <span class="text-base font-extrabold tracking-tight text-white font-heading block leading-none truncate">
+              LabGuard+
+            </span>
+            <span class="text-[11px] text-blue-200 block truncate mt-0.5">
+              AU Jose Rizal Campus · Student Registration
+            </span>
+          </div>
+        </div>
+        <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-white/15 text-[#F5A623] font-bold shrink-0">
+          ID VERIFY
+        </span>
+      </header>
+
+      <!-- Scrollable Smartphone Viewport Content -->
+      <main class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <!-- =============================================================== -->
+        <!-- SUBMITTED / PENDING ADMIN VERIFICATION CONFIRMATION CARD        -->
+        <!-- =============================================================== -->
+        <section
+          id="reg-success-box"
+          class="hidden bg-white border-2 border-amber-400 rounded-2xl p-5 space-y-4 shadow-xl animate-card-pop"
+        >
+          <div class="text-center space-y-2.5 border-b border-slate-100 pb-4">
+            <div class="w-16 h-16 mx-auto rounded-full bg-amber-50 border-2 border-amber-300 text-amber-600 flex items-center justify-center shadow-sm">
+              <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+            </div>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 font-mono text-[10px] font-extrabold uppercase tracking-wider">
+              Pending Verification
+            </span>
+            <h1 class="text-lg font-extrabold text-slate-900 font-heading leading-snug">
+              Registration Submitted!
+            </h1>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Your registration &amp; School ID photo have been sent to the Laboratory Admin. Once approved, you can sign in to borrow and return equipment.
+            </p>
+          </div>
+
+          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-slate-500 font-medium">Student Name</span>
+              <span id="reg-success-name" class="font-bold text-slate-900 text-right truncate"></span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-slate-500 font-medium">Student ID / LRN</span>
+              <span id="reg-success-lrn" class="font-mono font-bold text-[#003087] text-right"></span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-slate-500 font-medium">Strand / Faculty</span>
+              <span id="reg-success-strand" class="font-mono font-semibold text-slate-800 text-right"></span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-slate-500 font-medium">School Email</span>
+              <span id="reg-success-email" class="font-mono text-[11px] text-slate-700 text-right truncate"></span>
+            </div>
+          </div>
+
+          <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-900 leading-snug">
+            <strong class="font-bold">Next Step:</strong> Wait for Laboratory Personnel to verify your School ID. You can check your approval status anytime below.
+          </div>
+
+          <div class="space-y-2 pt-1">
+            <button
+              type="button"
+              onclick="checkSubmittedApprovalStatus()"
+              class="w-full h-11 px-4 bg-[#003087] hover:bg-[#002466] active:scale-[0.99] text-white text-xs font-heading font-extrabold uppercase tracking-wide rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              Check Approval Status
+            </button>
+            <button
+              type="button"
+              onclick="resetForAnotherRegistration()"
+              class="w-full h-10 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-heading font-bold rounded-xl transition-colors cursor-pointer"
+            >
+              Register Another Student
+            </button>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- STUDENT REGISTRATION FORM                                       -->
+        <!-- =============================================================== -->
+        <form
+          id="student-register-form"
+          onsubmit="submitStudentRegistration(event)"
+          novalidate
+          class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5 shadow-2xs"
+        >
+          <!-- Intro Banner -->
+          <div class="bg-blue-50/80 border border-blue-200 rounded-xl p-3 space-y-1">
+            <div class="flex items-center justify-between gap-2">
+              <h1 class="text-sm font-extrabold text-[#003087] font-heading">
+                Create Verified Student Account
+              </h1>
+              <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-white border border-blue-200 text-[#003087] shrink-0">
+                AU-JRC
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-600 leading-snug">
+              Submit your school details and a clear photo of your official AU-JRC School ID. Laboratory Admin approval is required before borrowing apparatus.
+            </p>
+          </div>
+
+          <!-- Full Name -->
+          <div>
+            <label for="reg-full-name" class="block text-xs font-bold text-slate-800 mb-1">
+              Full Name *
+            </label>
+            <input
+              id="reg-full-name"
+              type="text"
+              required
+              autocomplete="name"
+              placeholder="Juan M. Dela Cruz"
+              class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+            />
+          </div>
+
+          <!-- Student ID / LRN -->
+          <div>
+            <label for="reg-lrn" class="block text-xs font-bold text-slate-800 mb-1">
+              Student ID / LRN *
+            </label>
+            <input
+              id="reg-lrn"
+              type="text"
+              required
+              autocomplete="username"
+              placeholder="AUJRC-2026-0199"
+              class="w-full h-11 px-3.5 text-xs sm:text-sm font-mono uppercase bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+            />
+          </div>
+
+          <!-- Strand / Faculty -->
+          <div>
+            <label for="reg-grade-section" class="block text-xs font-bold text-slate-800 mb-1">
+              Strand / Faculty *
+            </label>
+            <select
+              id="reg-grade-section"
+              required
+              class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white font-medium"
+            >
+              <optgroup label="STRANDS">
+                <option value="STEM">STEM</option>
+                <option value="HUMSS">HUMSS</option>
+                <option value="ABM">ABM</option>
+              </optgroup>
+              <option value="FACULTY">FACULTY</option>
+            </select>
+          </div>
+
+          <!-- School Email -->
+          <div>
+            <label for="reg-email" class="block text-xs font-bold text-slate-800 mb-1">
+              School Email (@arellano.edu.ph) *
+            </label>
+            <input
+              id="reg-email"
+              type="email"
+              inputmode="email"
+              required
+              autocomplete="email"
+              placeholder="juan.delacruz@arellano.edu.ph"
+              class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+            />
+          </div>
+
+          <!-- Account Password & Confirm Password -->
+          <div class="grid grid-cols-1 gap-3">
+            <div>
+              <label for="reg-password" class="block text-xs font-bold text-slate-800 mb-1">
+                Account Password (min. 6 chars) *
+              </label>
+              <input
+                id="reg-password"
+                type="password"
+                required
+                minlength="6"
+                autocomplete="new-password"
+                placeholder="At least 6 characters"
+                class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+              />
+            </div>
+
+            <div>
+              <label for="reg-password-confirm" class="block text-xs font-bold text-slate-800 mb-1">
+                Confirm Password *
+              </label>
+              <input
+                id="reg-password-confirm"
+                type="password"
+                required
+                minlength="6"
+                autocomplete="new-password"
+                placeholder="Re-enter your password"
+                class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+              />
+            </div>
+          </div>
+
+          <!-- School ID Picture Upload / Camera Capture -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label for="reg-id-photo-input" class="block text-xs font-bold text-slate-800">
+                Official School ID Photo *
+              </label>
+              <span class="text-[10px] font-mono text-slate-500">
+                Auto-resized ≤1200px JPEG
+              </span>
+            </div>
+
+            <!-- Touch-Friendly Camera / Gallery Upload Zone -->
+            <label
+              id="reg-id-upload-box"
+              for="reg-id-photo-input"
+              class="block w-full p-4 bg-slate-50 hover:bg-blue-50/50 active:bg-blue-50 border-2 border-dashed border-slate-300 hover:border-[#003087] rounded-xl text-center cursor-pointer transition-colors"
+            >
+              <div class="w-11 h-11 mx-auto mb-2 rounded-full bg-blue-100 text-[#003087] flex items-center justify-center">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+              </div>
+              <p class="text-xs font-heading font-bold text-[#003087]">
+                Tap to Take Photo or Upload School ID
+              </p>
+              <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                Show front of your AU-JRC School ID clearly with Full Name &amp; LRN visible
+              </p>
+            </label>
+
+            <input
+              id="reg-id-photo-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onchange="handleIdPhotoSelect(event)"
+              class="sr-only"
+            />
+
+            <!-- Live Compressed School ID Preview Box -->
+            <div
+              id="reg-id-preview-box"
+              class="hidden bg-slate-50 border-2 border-emerald-300 rounded-xl p-3 space-y-2.5"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800">
+                  <span class="w-2 h-2 rounded-full bg-[#16A34A]"></span>
+                  School ID Ready for Verification
+                </span>
+                <span
+                  id="reg-id-size-label"
+                  class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600"
+                >
+                  0 KB
+                </span>
+              </div>
+
+              <div class="bg-slate-900 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center max-h-48">
+                <img
+                  id="reg-id-preview-img"
+                  src=""
+                  alt="School ID Preview"
+                  class="max-h-48 w-full object-contain"
+                />
+              </div>
+
+              <button
+                type="button"
+                onclick="triggerRetakeIdPhoto()"
+                class="w-full py-2 px-3 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-heading font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                Retake / Choose Different Photo
+              </button>
+            </div>
+          </div>
+
+          <!-- Inline Validation & Server Error Banner -->
+          <div
+            id="reg-error-box"
+            role="alert"
+            class="hidden text-xs font-semibold text-red-700 bg-red-50 p-3 rounded-xl border border-red-200 leading-snug"
+          ></div>
+
+          <!-- Primary Submit Button -->
+          <button
+            id="reg-submit-btn"
+            type="submit"
+            class="w-full h-12 py-3 px-4 bg-[#C8102E] hover:bg-[#a50d25] active:scale-[0.99] disabled:opacity-60 text-white text-xs sm:text-sm font-heading font-extrabold tracking-wide rounded-xl shadow-md transition-all cursor-pointer"
+          >
+            Submit Registration for Admin Approval →
+          </button>
+
+          <p class="text-[10px] text-center text-slate-500 leading-snug">
+            Previously rejected? Re-submit with your same LRN &amp; email and a clearer School ID photo to request re-verification.
+          </p>
+        </form>
+
+        <!-- =============================================================== -->
+        <!-- CHECK APPROVAL STATUS PANEL (COMPACT / COLLAPSIBLE CARD)        -->
+        <!-- =============================================================== -->
+        <section
+          id="status-check-section"
+          class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs"
+        >
+          <button
+            type="button"
+            onclick="toggleStatusPanel()"
+            class="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 flex items-center justify-between gap-2 text-left cursor-pointer border-b border-slate-200 transition-colors"
+          >
+            <div>
+              <p class="text-[10px] font-mono font-bold uppercase tracking-wider text-[#003087]">
+                Already Registered?
+              </p>
+              <h2 class="text-xs sm:text-sm font-extrabold text-slate-900 font-heading">
+                Check Approval Status
+              </h2>
+            </div>
+            <span
+              id="status-panel-chevron"
+              class="font-mono text-xs font-bold text-slate-500 px-2 py-0.5 rounded bg-white border border-slate-200"
+            >
+              −
+            </span>
+          </button>
+
+          <div id="status-check-body" class="p-4 space-y-3">
+            <form onsubmit="checkApprovalStatus(event)" class="space-y-2.5">
+              <div>
+                <label for="status-identifier" class="block text-[11px] font-bold text-slate-700 mb-1">
+                  Student ID / LRN or School Email
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    id="status-identifier"
+                    type="text"
+                    placeholder="AUJRC-2026-0105 or email"
+                    class="flex-1 min-w-0 h-10 px-3 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+                  />
+                  <button
+                    id="status-check-btn"
+                    type="submit"
+                    class="px-3.5 h-10 bg-[#003087] hover:bg-[#002466] text-white text-xs font-heading font-bold rounded-xl shrink-0 transition-colors cursor-pointer"
+                  >
+                    Check Status
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <!-- Color-Coded Approval Status Result Box -->
+            <div id="status-result-box" class="hidden rounded-xl p-3 border text-xs space-y-1.5"></div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Phone Home Indicator Bar (Visible on PC Phone Frame) -->
+      <div class="hidden sm:flex justify-center py-2 bg-white border-t border-slate-100 shrink-0">
+        <div class="w-32 h-1.5 bg-slate-300 rounded-full"></div>
+      </div>
+    </div>
+
+    <!-- Discreet Prototype Route Helper (Desktop preview only — hidden on mobile phones) -->
+    <div
+      id="proto-route-helper"
+      class="hidden sm:flex fixed bottom-3 right-3 z-50 bg-slate-900/90 text-white border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg items-center gap-2.5"
+    >
+      <span class="font-mono text-[11px] text-slate-400">Preview Routes:</span>
+      <a href="/kiosk" class="font-medium text-white hover:text-[#F5A623] underline">kiosk.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/register" class="font-semibold text-[#F5A623] underline">student_register.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/checkout/DEMO-QR" class="font-medium text-white hover:text-[#F5A623] underline">student_form.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/admin" class="font-medium text-white hover:text-[#F5A623] underline">admin.html</a>
+      <button
+        type="button"
+        onclick="document.getElementById('proto-route-helper').remove()"
+        class="ml-1 text-slate-400 hover:text-white cursor-pointer"
+        title="Hide helper"
+      >
+        ✕
+      </button>
+    </div>
+
+    <script>
+      let idPhotoDataUrl = '';
+      let isCompressingPhoto = false;
+      let lastSubmittedLrn = '';
+      let lastRejectedLrn = '';
+      let isStatusPanelOpen = true;
+
+      function escapeHtml(str) {
+        return String(str === null || str === undefined ? '' : str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function estimateDataUrlBytes(dataUrl) {
+        if (!dataUrl || typeof dataUrl !== 'string') return 0;
+        const commaIdx = dataUrl.indexOf(',');
+        if (commaIdx === -1) return 0;
+        const b64 = dataUrl.slice(commaIdx + 1);
+        return Math.round((b64.length * 3) / 4);
+      }
+
+      function showRegError(msg) {
+        const box = document.getElementById('reg-error-box');
+        if (!box) return;
+        box.textContent = msg;
+        box.classList.remove('hidden');
+      }
+
+      function hideRegError() {
+        const box = document.getElementById('reg-error-box');
+        if (box) {
+          box.textContent = '';
+          box.classList.add('hidden');
+        }
+      }
+
+      function setIdPhotoPreview(dataUrl, width, height) {
+        idPhotoDataUrl = dataUrl;
+        const kb = Math.max(1, Math.round(estimateDataUrlBytes(dataUrl) / 1024));
+        const previewBox = document.getElementById('reg-id-preview-box');
+        const uploadBox = document.getElementById('reg-id-upload-box');
+        const previewImg = document.getElementById('reg-id-preview-img');
+        const sizeLabel = document.getElementById('reg-id-size-label');
+
+        if (previewImg) previewImg.src = dataUrl;
+        if (sizeLabel) {
+          sizeLabel.textContent =
+            width && height ? `${kb} KB · ${width}×${height}` : `${kb} KB`;
+        }
+        if (uploadBox) uploadBox.classList.add('hidden');
+        if (previewBox) previewBox.classList.remove('hidden');
+      }
+
+      function clearIdPhotoPreview() {
+        idPhotoDataUrl = '';
+        const input = document.getElementById('reg-id-photo-input');
+        const previewBox = document.getElementById('reg-id-preview-box');
+        const uploadBox = document.getElementById('reg-id-upload-box');
+        const previewImg = document.getElementById('reg-id-preview-img');
+
+        if (input) input.value = '';
+        if (previewImg) previewImg.src = '';
+        if (previewBox) previewBox.classList.add('hidden');
+        if (uploadBox) uploadBox.classList.remove('hidden');
+      }
+
+      function triggerRetakeIdPhoto() {
+        const input = document.getElementById('reg-id-photo-input');
+        if (input) {
+          input.value = '';
+          input.click();
+        }
+      }
+
+      function compressImageFile(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error('Could not read the selected image file.'));
+          reader.onload = () => {
+            const rawDataUrl = typeof reader.result === 'string' ? reader.result : '';
+            if (!rawDataUrl) {
+              reject(new Error('Selected image file is empty.'));
+              return;
+            }
+
+            // Allow SVG files directly if under 4MB (e.g. demo or vector IDs)
+            if (file.type === 'image/svg+xml' || rawDataUrl.startsWith('data:image/svg+xml;base64,')) {
+              resolve({ dataUrl: rawDataUrl, width: 0, height: 0 });
+              return;
+            }
+
+            const img = new Image();
+            img.onerror = () => {
+              // Fallback to raw image data URL if valid raster format
+              if (/^data:image\/(jpeg|jpg|png|webp);base64,/i.test(rawDataUrl)) {
+                resolve({ dataUrl: rawDataUrl, width: 0, height: 0 });
+              } else {
+                reject(new Error('Unsupported image format. Please upload a JPG, PNG, or WebP photo of your School ID.'));
+              }
+            };
+            img.onload = () => {
+              try {
+                const maxWidth = 1200;
+                const origW = img.naturalWidth || img.width || 1;
+                const origH = img.naturalHeight || img.height || 1;
+                const scale = origW > maxWidth ? maxWidth / origW : 1;
+                const targetW = Math.max(1, Math.round(origW * scale));
+                const targetH = Math.max(1, Math.round(origH * scale));
+
+                const canvas = document.createElement('canvas');
+                canvas.width = targetW;
+                canvas.height = targetH;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                  resolve({ dataUrl: rawDataUrl, width: origW, height: origH });
+                  return;
+                }
+
+                // Fill white background before drawing so transparent PNGs convert cleanly to JPEG
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, targetW, targetH);
+                ctx.drawImage(img, 0, 0, targetW, targetH);
+
+                const compressedUrl = canvas.toDataURL('image/jpeg', 0.82);
+                resolve({ dataUrl: compressedUrl, width: targetW, height: targetH });
+              } catch (canvasErr) {
+                resolve({ dataUrl: rawDataUrl, width: img.width || 0, height: img.height || 0 });
+              }
+            };
+            img.src = rawDataUrl;
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function handleIdPhotoSelect(e) {
+        hideRegError();
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        if (file.type && !file.type.startsWith('image/')) {
+          showRegError('Please select a valid image file (JPEG, PNG, or WebP) of your School ID.');
+          clearIdPhotoPreview();
+          return;
+        }
+
+        isCompressingPhoto = true;
+        const submitBtn = document.getElementById('reg-submit-btn');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Compressing School ID Photo...';
+        }
+
+        try {
+          const result = await compressImageFile(file);
+          const bytes = estimateDataUrlBytes(result.dataUrl);
+          if (bytes > 4 * 1024 * 1024) {
+            showRegError('School ID image exceeds the 4 MB limit even after compression. Please choose a smaller photo.');
+            clearIdPhotoPreview();
+          } else {
+            setIdPhotoPreview(result.dataUrl, result.width, result.height);
+          }
+        } catch (err) {
+          showRegError(err && err.message ? err.message : 'Failed to process School ID photo.');
+          clearIdPhotoPreview();
+        } finally {
+          isCompressingPhoto = false;
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Registration for Admin Approval →';
+          }
+        }
+      }
+
+      async function submitStudentRegistration(e) {
+        e.preventDefault();
+        hideRegError();
+
+        if (isCompressingPhoto) {
+          showRegError('Please wait a moment while your School ID photo finishes compressing.');
+          return;
+        }
+
+        const fullName = (document.getElementById('reg-full-name').value || '').trim();
+        const lrn = (document.getElementById('reg-lrn').value || '').trim().toUpperCase();
+        const gradeSection = document.getElementById('reg-grade-section').value;
+        const email = (document.getElementById('reg-email').value || '').trim().toLowerCase();
+        const password = document.getElementById('reg-password').value || '';
+        const passwordConfirm = document.getElementById('reg-password-confirm').value || '';
+
+        if (!fullName) {
+          showRegError('Please enter your Full Name as printed on your School ID.');
+          return;
+        }
+        if (!lrn) {
+          showRegError('Please enter your Student ID / LRN (e.g. AUJRC-2026-0199).');
+          return;
+        }
+        if (!email || !email.includes('@') || !email.includes('.')) {
+          showRegError('Please enter a valid School Email address (e.g. name@arellano.edu.ph).');
+          return;
+        }
+        if (password.length < 6) {
+          showRegError('Account password must be at least 6 characters long.');
+          return;
+        }
+        if (password !== passwordConfirm) {
+          showRegError('Passwords do not match. Please re-enter and confirm your password.');
+          return;
+        }
+        if (!idPhotoDataUrl) {
+          showRegError('Please capture or upload a clear photo of your official School ID.');
+          return;
+        }
+
+        const submitBtn = document.getElementById('reg-submit-btn');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Submitting Registration...';
+        }
+
+        try {
+          const res = await fetch('/api/students/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              full_name: fullName,
+              student_id_lrn: lrn,
+              grade_section: gradeSection,
+              school_email: email,
+              password,
+              id_photo_data_url: idPhotoDataUrl,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.success) {
+            showRegError(data.error || 'Could not submit registration. Please check your details and try again.');
+            return;
+          }
+
+          const student = data.student || {};
+          lastSubmittedLrn = student.student_id_lrn || lrn;
+
+          document.getElementById('reg-success-name').textContent = student.full_name || fullName;
+          document.getElementById('reg-success-lrn').textContent = lastSubmittedLrn;
+          document.getElementById('reg-success-strand').textContent = student.grade_section || gradeSection;
+          document.getElementById('reg-success-email').textContent = student.school_email || email;
+
+          document.getElementById('student-register-form').classList.add('hidden');
+          const successBox = document.getElementById('reg-success-box');
+          successBox.classList.remove('hidden');
+          successBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (err) {
+          showRegError('Network error while submitting registration. Please make sure you are connected to the lab Wi-Fi.');
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Registration for Admin Approval →';
+          }
+        }
+      }
+
+      function resetForAnotherRegistration() {
+        const form = document.getElementById('student-register-form');
+        if (form) {
+          form.reset();
+          form.classList.remove('hidden');
+        }
+        clearIdPhotoPreview();
+        hideRegError();
+        document.getElementById('reg-success-box').classList.add('hidden');
+        const nameInput = document.getElementById('reg-full-name');
+        if (nameInput) nameInput.focus();
+      }
+
+      function checkSubmittedApprovalStatus() {
+        const input = document.getElementById('status-identifier');
+        if (input && lastSubmittedLrn) {
+          input.value = lastSubmittedLrn;
+        }
+        if (!isStatusPanelOpen) {
+          toggleStatusPanel();
+        }
+        document.getElementById('status-check-section').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        checkApprovalStatus();
+      }
+
+      function toggleStatusPanel() {
+        isStatusPanelOpen = !isStatusPanelOpen;
+        const body = document.getElementById('status-check-body');
+        const chevron = document.getElementById('status-panel-chevron');
+        if (body) body.classList.toggle('hidden', !isStatusPanelOpen);
+        if (chevron) chevron.textContent = isStatusPanelOpen ? '−' : '+';
+      }
+
+      function focusResubmitFromStatus(lrn) {
+        const successBox = document.getElementById('reg-success-box');
+        const form = document.getElementById('student-register-form');
+        if (successBox) successBox.classList.add('hidden');
+        if (form) form.classList.remove('hidden');
+        if (lrn) {
+          const lrnInput = document.getElementById('reg-lrn');
+          if (lrnInput) lrnInput.value = lrn;
+        }
+        if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      async function checkApprovalStatus(e) {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        const input = document.getElementById('status-identifier');
+        const resultBox = document.getElementById('status-result-box');
+        const btn = document.getElementById('status-check-btn');
+        const identifier = (input && input.value ? input.value : '').trim();
+
+        if (!identifier) {
+          resultBox.className = 'rounded-xl p-3 border text-xs space-y-1 bg-slate-50 border-slate-200 text-slate-700';
+          resultBox.innerHTML = '<p class="font-semibold">Enter your Student ID / LRN or School Email to check your status.</p>';
+          return;
+        }
+
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Checking...';
+        }
+
+        try {
+          const res = await fetch(`/api/students/status?identifier=${encodeURIComponent(identifier)}`);
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            resultBox.className = 'rounded-xl p-3 border text-xs space-y-1 bg-red-50 border-red-200 text-red-700';
+            resultBox.innerHTML = `<p class="font-semibold">${escapeHtml(data.error || 'Unable to check status right now.')}</p>`;
+            return;
+          }
+
+          if (!data.found) {
+            resultBox.className = 'rounded-xl p-3 border text-xs space-y-1 bg-slate-50 border-slate-200 text-slate-700';
+            resultBox.innerHTML = `
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-mono text-[10px] font-bold uppercase">Not Found</span>
+              </div>
+              <p class="font-medium leading-snug">No registration found for that ID or email.</p>
+            `;
+            return;
+          }
+
+          const status = (data.status || '').toLowerCase();
+          const lrnBadge = data.student_id_lrn
+            ? `<span class="font-mono text-[10px] text-slate-500">${escapeHtml(data.student_id_lrn)}</span>`
+            : '';
+
+          if (status === 'approved') {
+            resultBox.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-emerald-50 border-emerald-200 text-emerald-900';
+            resultBox.innerHTML = `
+              <div class="flex items-center justify-between gap-2">
+                <span class="px-2 py-0.5 rounded-full bg-[#16A34A] text-white font-mono text-[10px] font-bold uppercase">Approved</span>
+                ${lrnBadge}
+              </div>
+              <p class="font-semibold leading-snug">Approved! Your account is active and ready for checkout.</p>
+            `;
+          } else if (status === 'pending') {
+            resultBox.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-amber-50 border-amber-200 text-amber-950';
+            resultBox.innerHTML = `
+              <div class="flex items-center justify-between gap-2">
+                <span class="px-2 py-0.5 rounded-full bg-[#F5A623] text-slate-950 font-mono text-[10px] font-bold uppercase">Pending</span>
+                ${lrnBadge}
+              </div>
+              <p class="font-semibold leading-snug">Pending Verification — Laboratory Admin is reviewing your School ID photo.</p>
+            `;
+          } else if (status === 'rejected') {
+            const reasonText = data.rejection_reason && data.rejection_reason.trim()
+              ? data.rejection_reason.trim()
+              : 'School ID verification failed';
+            lastRejectedLrn = data.student_id_lrn || '';
+            resultBox.className = 'rounded-xl p-3 border text-xs space-y-2 bg-red-50 border-red-200 text-red-900';
+            resultBox.innerHTML = `
+              <div class="flex items-center justify-between gap-2">
+                <span class="px-2 py-0.5 rounded-full bg-[#C8102E] text-white font-mono text-[10px] font-bold uppercase">Rejected</span>
+                ${lrnBadge}
+              </div>
+              <p class="font-semibold leading-snug">Rejected — Reason: ${escapeHtml(reasonText)}. You may re-submit above with a clearer ID photo.</p>
+              <button
+                type="button"
+                onclick="focusResubmitFromStatus(lastRejectedLrn)"
+                class="px-3 py-1.5 bg-white hover:bg-red-100 border border-red-300 text-red-800 text-[11px] font-heading font-bold rounded-lg cursor-pointer"
+              >
+                Re-Submit Registration ↑
+              </button>
+            `;
+          } else if (status === 'suspended') {
+            resultBox.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-red-50 border-red-200 text-red-900';
+            resultBox.innerHTML = `
+              <div class="flex items-center justify-between gap-2">
+                <span class="px-2 py-0.5 rounded-full bg-red-700 text-white font-mono text-[10px] font-bold uppercase">Suspended</span>
+                ${lrnBadge}
+              </div>
+              <p class="font-semibold leading-snug">Account Suspended — Contact Laboratory Personnel.</p>
+            `;
+          } else {
+            resultBox.className = 'rounded-xl p-3 border text-xs space-y-1 bg-slate-50 border-slate-200 text-slate-700';
+            resultBox.innerHTML = `<p class="font-semibold">Account status: ${escapeHtml(status || 'Unknown')}</p>`;
+          }
+        } catch (err) {
+          resultBox.className = 'rounded-xl p-3 border text-xs space-y-1 bg-red-50 border-red-200 text-red-700';
+          resultBox.innerHTML = '<p class="font-semibold">Network error while checking approval status.</p>';
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Check Status';
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
