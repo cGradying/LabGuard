@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>LabGuard+ Student Account Portal — Arellano University Jose Rizal Campus</title>
+    <link rel="stylesheet" href="/css/labguard.css" />
+    <style>
+      body {
+        font-family: 'DM Sans', 'DejaVu Sans', system-ui, sans-serif;
+        color: #0f172a;
+        -webkit-tap-highlight-color: transparent;
+      }
+      h1, h2, h3, h4, .font-heading {
+        font-family: 'Plus Jakarta Sans', 'DejaVu Sans', system-ui, -apple-system, sans-serif;
+      }
+      .font-mono {
+        font-family: 'JetBrains Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
+        font-variant-numeric: tabular-nums;
+      }
+      .tabular-nums {
+        font-variant-numeric: tabular-nums;
+      }
+      @keyframes popInCard {
+        0% {
+          opacity: 0;
+          transform: translateY(12px) scale(0.98);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      .animate-card-pop {
+        animation: popInCard 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      details > summary {
+        list-style: none;
+      }
+      details > summary::-webkit-details-marker {
+        display: none;
+      }
+    </style>
+  </head>
+  <!-- On phones (<640px): native full-bleed viewport. On desktop (>=640px): dark studio backdrop showcasing smartphone bezel -->
+  <body class="min-h-screen bg-[#F8FAFC] sm:bg-slate-900 sm:py-8 sm:px-4 flex flex-col items-center justify-center">
+    <!-- PC Context Label (Hidden on actual phones) -->
+    <div class="hidden sm:flex items-center justify-between w-full max-w-[420px] mb-3 px-2 text-xs text-slate-300">
+      <span class="font-mono font-semibold text-[#F5A623]">
+        Mobile Student Account Portal
+      </span>
+      <a href="/kiosk" class="text-slate-300 hover:text-white underline">
+        ← Back to Kiosk LCD
+      </a>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- SMARTPHONE DEVICE FRAME ON PC / NATIVE FULL-SCREEN ON MOBILE PHONE  -->
+    <!-- =================================================================== -->
+    <div
+      class="w-full max-w-[420px] bg-[#F8FAFC] min-h-screen sm:min-h-[820px] sm:max-h-[880px] sm:rounded-[44px] sm:border-[10px] sm:border-slate-800 sm:shadow-2xl flex flex-col overflow-hidden relative"
+    >
+      <!-- Phone Status Bar & Speaker Notch (Visible on PC Phone Frame) -->
+      <div class="hidden sm:flex items-center justify-between bg-[#003087] text-white px-6 pt-2.5 pb-1 text-[11px] font-mono shrink-0">
+        <span>9:41</span>
+        <div class="w-24 h-4 bg-slate-950 rounded-full"></div>
+        <span>5G · 100%</span>
+      </div>
+
+      <!-- Mobile Top App Bar with Official AU Seal -->
+      <header class="bg-[#003087] text-white px-4 py-3 flex items-center justify-between gap-3 border-b border-white/15 shrink-0 shadow-xs">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <img
+            src="/images/au_seal.jpg"
+            alt="Arellano University"
+            class="w-8 h-8 object-contain rounded-full bg-white p-0.5 shadow-xs shrink-0"
+          />
+          <div class="min-w-0">
+            <span class="text-base font-extrabold tracking-tight text-white font-heading block leading-none truncate">
+              LabGuard+
+            </span>
+            <span class="text-[11px] text-blue-200 block truncate mt-0.5">
+              Student Account Portal
+            </span>
+          </div>
+        </div>
+        <span
+          id="account-header-badge"
+          class="font-mono text-[10px] px-2 py-0.5 rounded bg-white/15 text-[#F5A623] font-bold shrink-0"
+        >
+          PORTAL
+        </span>
+      </header>
+
+      <!-- Scrollable Smartphone Viewport Content -->
+      <main class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <!-- =============================================================== -->
+        <!-- LOADING STATE                                                   -->
+        <!-- =============================================================== -->
+        <div
+          id="account-loading-box"
+          class="bg-white border border-slate-200 rounded-2xl p-6 text-center space-y-2 shadow-2xs"
+        >
+          <div class="w-10 h-10 mx-auto rounded-full bg-blue-50 border border-blue-200 text-[#003087] flex items-center justify-center">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+          </div>
+          <p class="text-xs font-heading font-bold text-slate-800">Checking Student Session...</p>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- LOGGED-OUT VIEW: STUDENT SIGN-IN                                -->
+        <!-- =============================================================== -->
+        <section id="account-login-view" class="hidden space-y-4 animate-card-pop">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-sm">
+            <div class="bg-blue-50/80 border border-blue-200 rounded-xl p-3.5 space-y-1">
+              <div class="flex items-center justify-between gap-2">
+                <h1 class="text-sm font-extrabold text-[#003087] font-heading">
+                  Sign In to Student Portal
+                </h1>
+                <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-white border border-blue-200 text-[#003087] shrink-0">
+                  AU-JRC
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-600 leading-snug">
+                Access your verified laboratory profile, currently borrowed apparatus, embedded usage &amp; safety guides, and borrow history.
+              </p>
+            </div>
+
+            <form id="account-login-form" onsubmit="handleAccountLogin(event)" class="space-y-3">
+              <div>
+                <label for="account-login-identifier" class="block text-xs font-bold text-slate-800 mb-1">
+                  Student ID / LRN or School Email *
+                </label>
+                <input
+                  id="account-login-identifier"
+                  type="text"
+                  required
+                  autocomplete="username"
+                  placeholder="AUJRC-2026-0101 or name@arellano.edu.ph"
+                  class="w-full h-11 px-3.5 text-xs sm:text-sm font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label for="account-login-password" class="block text-xs font-bold text-slate-800 mb-1">
+                  Account Password *
+                </label>
+                <input
+                  id="account-login-password"
+                  type="password"
+                  required
+                  autocomplete="current-password"
+                  placeholder="Enter your password"
+                  class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+                />
+              </div>
+
+              <!-- Color-Coded Status / Error Box -->
+              <div id="account-login-error" role="alert" class="hidden rounded-xl p-3 border text-xs space-y-1.5"></div>
+
+              <button
+                id="account-login-btn"
+                type="submit"
+                class="w-full h-12 py-3 px-4 bg-[#003087] hover:bg-[#002466] active:scale-[0.99] disabled:opacity-60 text-white text-xs sm:text-sm font-heading font-extrabold tracking-wide rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Sign In to My Account →
+              </button>
+            </form>
+
+            <div class="pt-3 border-t border-slate-100 space-y-2.5">
+              <a
+                href="/student/register"
+                class="block w-full py-2.5 px-3.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-center text-xs font-heading font-extrabold rounded-xl transition-colors"
+              >
+                Register &amp; Upload School ID →
+              </a>
+
+              <div class="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] text-slate-500">
+                <span class="truncate">
+                  Demo Account:
+                  <code class="font-mono font-bold text-slate-700">AUJRC-2026-0101</code> /
+                  <code class="font-mono font-bold text-slate-700">student123</code>
+                </span>
+                <button
+                  type="button"
+                  onclick="fillDemoAccountLogin()"
+                  class="font-heading font-bold text-[#003087] underline shrink-0 cursor-pointer"
+                >
+                  Auto-Fill
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- LOGGED-IN VIEW: STUDENT ACCOUNT DASHBOARD                       -->
+        <!-- =============================================================== -->
+        <section id="account-dashboard-view" class="hidden space-y-4 animate-card-pop">
+          <!-- Verified Profile Card -->
+          <div class="bg-white border-2 border-emerald-300 rounded-2xl p-4 space-y-3 shadow-xs">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#16A34A] text-white font-mono text-[10px] font-extrabold uppercase tracking-wider">
+                  ✓ Verified Student
+                </span>
+                <h1 id="profile-full-name" class="text-base font-extrabold text-slate-900 font-heading mt-1.5 leading-snug truncate"></h1>
+              </div>
+              <button
+                type="button"
+                onclick="handleAccountSignOut()"
+                class="px-3 py-1.5 bg-slate-100 hover:bg-red-50 hover:text-[#C8102E] border border-slate-200 hover:border-red-200 text-slate-700 text-[11px] font-heading font-bold rounded-lg transition-colors cursor-pointer shrink-0"
+              >
+                Sign Out
+              </button>
+            </div>
+
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-slate-500 font-medium">Student ID / LRN</span>
+                <span id="profile-lrn" class="font-mono font-bold text-[#003087]"></span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-slate-500 font-medium">Strand / Faculty</span>
+                <span id="profile-strand" class="px-2 py-0.5 rounded bg-white border border-slate-200 font-mono text-[11px] font-bold text-slate-800"></span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-slate-500 font-medium">School Email</span>
+                <span id="profile-email" class="font-mono text-[11px] text-slate-700 truncate"></span>
+              </div>
+            </div>
+
+            <!-- Quick Loan Counters & Refresh -->
+            <div class="grid grid-cols-2 gap-2.5">
+              <div class="p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl text-center">
+                <p id="stat-active-count" class="text-lg font-mono font-extrabold text-[#003087] leading-none">0</p>
+                <p class="text-[10px] font-mono uppercase tracking-wider text-slate-600 mt-1">Active Loans</p>
+              </div>
+              <div class="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-center">
+                <p id="stat-past-count" class="text-lg font-mono font-extrabold text-[#16A34A] leading-none">0</p>
+                <p class="text-[10px] font-mono uppercase tracking-wider text-slate-600 mt-1">Returned Loans</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 1: CURRENTLY BORROWED EQUIPMENT -->
+          <section class="space-y-2.5">
+            <div class="flex items-center justify-between px-1">
+              <div>
+                <p class="text-[10px] font-mono font-bold uppercase tracking-wider text-[#003087]">
+                  In-Lab Apparatus &amp; Guides
+                </p>
+                <h2 class="text-sm font-extrabold text-slate-900 font-heading">
+                  Currently Borrowed Equipment
+                </h2>
+              </div>
+              <button
+                type="button"
+                onclick="refreshAccountData()"
+                class="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px] font-bold rounded-lg cursor-pointer"
+              >
+                Refresh
+              </button>
+            </div>
+
+            <div id="active-loans-list" class="space-y-3"></div>
+          </section>
+
+          <!-- SECTION 2: BORROW & RETURN HISTORY -->
+          <section class="space-y-2.5">
+            <div class="flex items-center justify-between px-1">
+              <div>
+                <p class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+                  Completed Sessions
+                </p>
+                <h2 class="text-sm font-extrabold text-slate-900 font-heading">
+                  Borrow &amp; Return History
+                </h2>
+              </div>
+              <span
+                id="past-loans-badge"
+                class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-mono text-[10px] font-bold"
+              >
+                0
+              </span>
+            </div>
+
+            <div id="past-loans-list" class="space-y-2.5"></div>
+          </section>
+
+          <!-- SECTION 3: ACCOUNT SECURITY (CHANGE PASSWORD) -->
+          <section class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+            <button
+              type="button"
+              onclick="togglePasswordSection()"
+              class="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 flex items-center justify-between gap-2 text-left cursor-pointer border-b border-slate-200 transition-colors"
+            >
+              <div>
+                <p class="text-[10px] font-mono font-bold uppercase tracking-wider text-[#003087]">
+                  Account Security
+                </p>
+                <h2 class="text-xs sm:text-sm font-extrabold text-slate-900 font-heading">
+                  Change Password
+                </h2>
+              </div>
+              <span
+                id="security-panel-chevron"
+                class="font-mono text-xs font-bold text-slate-500 px-2 py-0.5 rounded bg-white border border-slate-200"
+              >
+                +
+              </span>
+            </button>
+
+            <div id="security-panel-body" class="hidden p-4">
+              <form id="change-password-form" onsubmit="handleChangePassword(event)" class="space-y-3">
+                <div>
+                  <label for="cp-current-password" class="block text-[11px] font-bold text-slate-700 mb-1">
+                    Current Password *
+                  </label>
+                  <input
+                    id="cp-current-password"
+                    type="password"
+                    required
+                    autocomplete="current-password"
+                    placeholder="Enter current password"
+                    class="w-full h-10 px-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label for="cp-new-password" class="block text-[11px] font-bold text-slate-700 mb-1">
+                    New Password (min. 6 characters) *
+                  </label>
+                  <input
+                    id="cp-new-password"
+                    type="password"
+                    required
+                    minlength="6"
+                    autocomplete="new-password"
+                    placeholder="At least 6 characters"
+                    class="w-full h-10 px-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label for="cp-confirm-password" class="block text-[11px] font-bold text-slate-700 mb-1">
+                    Confirm New Password *
+                  </label>
+                  <input
+                    id="cp-confirm-password"
+                    type="password"
+                    required
+                    minlength="6"
+                    autocomplete="new-password"
+                    placeholder="Re-enter new password"
+                    class="w-full h-10 px-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+                  />
+                </div>
+
+                <div id="cp-feedback-box" role="alert" class="hidden rounded-xl p-2.5 border text-xs font-semibold"></div>
+
+                <button
+                  id="cp-submit-btn"
+                  type="submit"
+                  class="w-full h-10 px-4 bg-[#003087] hover:bg-[#002466] disabled:opacity-60 text-white text-xs font-heading font-extrabold rounded-xl transition-colors cursor-pointer"
+                >
+                  Update Password
+                </button>
+              </form>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <!-- Phone Home Indicator Bar (Visible on PC Phone Frame) -->
+      <div class="hidden sm:flex justify-center py-2 bg-white border-t border-slate-100 shrink-0">
+        <div class="w-32 h-1.5 bg-slate-300 rounded-full"></div>
+      </div>
+    </div>
+
+    <!-- Discreet Prototype Route Helper (Desktop preview only — hidden on mobile phones) -->
+    <div
+      id="proto-route-helper"
+      class="hidden sm:flex fixed bottom-3 right-3 z-50 bg-slate-900/90 text-white border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg items-center gap-2.5"
+    >
+      <span class="font-mono text-[11px] text-slate-400">Preview Routes:</span>
+      <a href="/kiosk" class="font-medium text-white hover:text-[#F5A623] underline">kiosk.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/register" class="font-medium text-white hover:text-[#F5A623] underline">student_register.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/account" class="font-semibold text-[#F5A623] underline">student_account.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/checkout/DEMO-QR" class="font-medium text-white hover:text-[#F5A623] underline">student_form.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/admin" class="font-medium text-white hover:text-[#F5A623] underline">admin.html</a>
+      <button
+        type="button"
+        onclick="document.getElementById('proto-route-helper').remove()"
+        class="ml-1 text-slate-400 hover:text-white cursor-pointer"
+        title="Hide helper"
+      >
+        ✕
+      </button>
+    </div>
+
+    <script>
+      const STUDENT_TOKEN_KEY = 'labguard_student_token';
+      let isSecurityOpen = false;
+
+      function escapeHtml(str) {
+        return String(str === null || str === undefined ? '' : str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function getStudentToken() {
+        return localStorage.getItem(STUDENT_TOKEN_KEY) || '';
+      }
+
+      function setStudentToken(token) {
+        if (token) {
+          localStorage.setItem(STUDENT_TOKEN_KEY, token);
+        } else {
+          localStorage.removeItem(STUDENT_TOKEN_KEY);
+        }
+      }
+
+      function formatDateTimeShort(isoStr) {
+        if (!isoStr) return '—';
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return String(isoStr);
+        return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      }
+
+      function getItemUsageSteps(item) {
+        if (Array.isArray(item.usage_instructions) && item.usage_instructions.length > 0) {
+          const clean = item.usage_instructions.map((s) => String(s || '').trim()).filter(Boolean);
+          if (clean.length > 0) return clean;
+        }
+        if (item.description && String(item.description).trim()) {
+          return [String(item.description).trim()];
+        }
+        return ['Inspect apparatus before use and handle carefully on a level laboratory bench.'];
+      }
+
+      function getItemPrecautions(item) {
+        if (Array.isArray(item.prerequisites) && item.prerequisites.length > 0) {
+          const clean = item.prerequisites.map((s) => String(s || '').trim()).filter(Boolean);
+          if (clean.length > 0) return clean;
+        }
+        return ['Wear required laboratory PPE (buttoned lab gown & safety goggles) before use.'];
+      }
+
+      function fillDemoAccountLogin() {
+        document.getElementById('account-login-identifier').value = 'AUJRC-2026-0101';
+        document.getElementById('account-login-password').value = 'student123';
+        hideAccountLoginError();
+      }
+
+      function hideAccountLoginError() {
+        const box = document.getElementById('account-login-error');
+        if (box) {
+          box.classList.add('hidden');
+          box.innerHTML = '';
+        }
+      }
+
+      function showAccountLoginError(status, message, rejectionReason) {
+        const box = document.getElementById('account-login-error');
+        if (!box) return;
+        const st = (status || '').toLowerCase();
+
+        if (st === 'pending') {
+          box.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-amber-50 border-amber-300 text-amber-950';
+          box.innerHTML = `
+            <span class="inline-block px-2 py-0.5 rounded-full bg-[#F5A623] text-slate-950 font-mono text-[10px] font-extrabold uppercase">Pending Approval</span>
+            <p class="font-semibold leading-snug">${escapeHtml(message || 'Your registration is awaiting Laboratory Admin verification of your School ID.')}</p>
+            <a href="/student/register" class="inline-block font-heading font-bold text-amber-900 underline">Check Approval Status →</a>
+          `;
+        } else if (st === 'rejected') {
+          const reason = (rejectionReason || '').trim();
+          box.className = 'rounded-xl p-3 border text-xs space-y-2 bg-red-50 border-red-300 text-red-900';
+          box.innerHTML = `
+            <span class="inline-block px-2 py-0.5 rounded-full bg-[#C8102E] text-white font-mono text-[10px] font-extrabold uppercase">Registration Rejected</span>
+            <p class="font-semibold leading-snug">${escapeHtml(message || 'Your registration was rejected by the Laboratory Admin.')}</p>
+            ${
+              reason
+                ? `<p class="p-2 bg-white/80 border border-red-200 rounded-lg text-[11px] font-medium text-red-900"><strong>Reason:</strong> ${escapeHtml(reason)}</p>`
+                : ''
+            }
+            <a href="/student/register" class="inline-block px-3 py-1.5 bg-white hover:bg-red-100 border border-red-300 text-red-800 text-[11px] font-heading font-bold rounded-lg">
+              Re-submit Registration →
+            </a>
+          `;
+        } else if (st === 'suspended') {
+          box.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-red-50 border-red-300 text-red-900';
+          box.innerHTML = `
+            <span class="inline-block px-2 py-0.5 rounded-full bg-red-700 text-white font-mono text-[10px] font-extrabold uppercase">Account Suspended</span>
+            <p class="font-semibold leading-snug">${escapeHtml(message || 'Your student account is suspended. Please contact Laboratory Personnel.')}</p>
+          `;
+        } else {
+          box.className = 'rounded-xl p-3 border text-xs space-y-1 bg-red-50 border-red-200 text-red-700';
+          box.innerHTML = `<p class="font-semibold leading-snug">${escapeHtml(message || 'Invalid Student ID / Email or password.')}</p>`;
+        }
+        box.classList.remove('hidden');
+      }
+
+      function showLoggedOutView() {
+        document.getElementById('account-loading-box').classList.add('hidden');
+        document.getElementById('account-dashboard-view').classList.add('hidden');
+        document.getElementById('account-login-view').classList.remove('hidden');
+        const badge = document.getElementById('account-header-badge');
+        if (badge) {
+          badge.textContent = 'SIGN IN';
+        }
+      }
+
+      function renderActiveLoans(activeLoans) {
+        const container = document.getElementById('active-loans-list');
+        if (!container) return;
+
+        if (!Array.isArray(activeLoans) || activeLoans.length === 0) {
+          container.innerHTML = `
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 text-center space-y-1.5">
+              <p class="text-xs font-heading font-bold text-slate-800">No Active Borrowed Equipment</p>
+              <p class="text-[11px] text-slate-500 leading-snug">
+                When you check out apparatus from the LabGuard+ Kiosk, your active pass and embedded usage &amp; safety guides will appear here.
+              </p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = activeLoans
+          .map((tx, txIdx) => {
+            const isOverdue = tx.status === 'Overdue';
+            const statusCls = isOverdue
+              ? 'bg-red-50 text-[#C8102E] border-red-200'
+              : 'bg-amber-50 text-amber-800 border-amber-200';
+            const statusLabel = isOverdue ? '▲ Overdue' : '● Borrowed / In Lab';
+            const dueRaw = tx.expected_return || tx.time_out_expected;
+            const itemsHtml = (tx.items || [])
+              .map((item) => {
+                const steps = getItemUsageSteps(item);
+                const precautions = getItemPrecautions(item);
+                const imgSrc = item.image_url || `/images/equipment/${item.qr_code}.svg`;
+                const isCaution = item.safety_level === 'CAUTION';
+                const openAttr = txIdx === 0 ? 'open' : '';
+
+                return `
+                  <div class="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+                    <div class="p-2.5 flex items-center justify-between gap-2.5">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src="${escapeHtml(imgSrc)}"
+                          alt="${escapeHtml(item.name)}"
+                          class="w-10 h-10 object-contain bg-white rounded-lg border border-slate-200 p-1 shrink-0"
+                        />
+                        <div class="min-w-0">
+                          <p class="text-xs font-extrabold text-slate-900 font-heading truncate">
+                            <span class="font-mono text-[#003087] mr-1">${Number(item.quantity || 1)}×</span>${escapeHtml(item.name)}
+                          </p>
+                          <div class="flex items-center gap-1.5 flex-wrap mt-0.5 text-[10px] font-mono">
+                            <span class="text-slate-500">${escapeHtml(item.qr_code || '')}</span>
+                            ${
+                              item.storage_compartment
+                                ? `<span class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-600">${escapeHtml(item.storage_compartment)}</span>`
+                                : ''
+                            }
+                            <span class="px-1.5 py-0.5 rounded font-bold ${isCaution ? 'bg-amber-100 text-amber-900' : 'bg-emerald-50 text-[#16A34A]'}">
+                              ${isCaution ? '▲ CAUTION' : '● SAFE'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <details ${openAttr} class="border-t border-slate-200 bg-white">
+                      <summary class="px-3 py-2 bg-blue-50/70 hover:bg-blue-50 cursor-pointer flex items-center justify-between gap-2 text-[11px] font-heading font-bold text-[#003087] select-none">
+                        <span>Usage Instructions &amp; Safety Precautions</span>
+                        <span class="font-mono text-[10px] text-slate-600 bg-white px-2 py-0.5 rounded border border-blue-200 shrink-0">
+                          ${steps.length} steps · ${precautions.length} safety
+                        </span>
+                      </summary>
+
+                      <div class="p-3 space-y-2.5 border-t border-blue-100">
+                        <div class="space-y-1.5">
+                          <p class="text-[10px] font-mono font-extrabold uppercase tracking-wider text-[#003087]">
+                            Proper / General Use Instructions
+                          </p>
+                          <ol class="space-y-1">
+                            ${steps
+                              .map(
+                                (step, idx) => `
+                                <li class="flex items-start gap-2 text-[11px] text-slate-700 leading-snug">
+                                  <span class="w-4 h-4 rounded-full bg-blue-100 text-[#003087] font-mono text-[10px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">
+                                    ${idx + 1}
+                                  </span>
+                                  <span>${escapeHtml(step)}</span>
+                                </li>
+                              `
+                              )
+                              .join('')}
+                          </ol>
+                        </div>
+
+                        <div class="p-2.5 bg-amber-50/90 border border-amber-200 rounded-xl space-y-1">
+                          <p class="text-[10px] font-mono font-extrabold uppercase tracking-wider text-amber-900">
+                            ▲ Safety Precautions Before Use
+                          </p>
+                          <ul class="space-y-1">
+                            ${precautions
+                              .map(
+                                (prec) => `
+                                <li class="flex items-start gap-2 text-[11px] text-amber-950 leading-snug font-medium">
+                                  <span class="text-amber-700 font-bold shrink-0 mt-0.5">✓</span>
+                                  <span>${escapeHtml(prec)}</span>
+                                </li>
+                              `
+                              )
+                              .join('')}
+                          </ul>
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                `;
+              })
+              .join('');
+
+            return `
+              <article class="bg-white border ${isOverdue ? 'border-red-300' : 'border-slate-200'} rounded-2xl p-3.5 space-y-3 shadow-2xs">
+                <div class="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                  <div class="min-w-0">
+                    <p class="font-mono text-xs font-extrabold text-[#003087]">${escapeHtml(tx.transaction_code || '')}</p>
+                    <p class="text-xs font-bold text-slate-900 mt-0.5 leading-snug">${escapeHtml(tx.subject_activity || '')}</p>
+                    <p class="text-[11px] text-slate-500 truncate">Teacher: ${escapeHtml(tx.teacher_name || '')}</p>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full border font-mono text-[10px] font-bold shrink-0 ${statusCls}">
+                    ${statusLabel}
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                  <div class="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <p class="text-[9px] uppercase text-slate-400 font-bold">Borrowed</p>
+                    <p class="text-slate-700 font-semibold mt-0.5">${escapeHtml(formatDateTimeShort(tx.time_in))}</p>
+                  </div>
+                  <div class="p-2 ${isOverdue ? 'bg-red-50 border-red-200' : 'bg-blue-50/70 border-blue-200'} border rounded-lg">
+                    <p class="text-[9px] uppercase ${isOverdue ? 'text-red-600' : 'text-[#003087]'} font-bold">Due Back</p>
+                    <p class="${isOverdue ? 'text-red-800' : 'text-[#003087]'} font-bold mt-0.5">${escapeHtml(formatDateTimeShort(dueRaw))}</p>
+                  </div>
+                </div>
+
+                <div class="space-y-2.5">
+                  ${itemsHtml}
+                </div>
+              </article>
+            `;
+          })
+          .join('');
+      }
+
+      function renderPastLoans(pastLoans) {
+        const container = document.getElementById('past-loans-list');
+        const badge = document.getElementById('past-loans-badge');
+        const list = Array.isArray(pastLoans) ? pastLoans : [];
+        if (badge) badge.textContent = String(list.length);
+        if (!container) return;
+
+        if (list.length === 0) {
+          container.innerHTML = `
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 text-center text-[11px] text-slate-500">
+              No returned laboratory loans recorded yet.
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = list
+          .map((tx) => {
+            const cond = tx.return_condition || 'Good';
+            let condCls = 'bg-emerald-50 text-[#16A34A] border-emerald-200';
+            if (cond === 'Damaged') {
+              condCls = 'bg-amber-50 text-amber-800 border-amber-200';
+            } else if (cond === 'Missing') {
+              condCls = 'bg-red-50 text-[#C8102E] border-red-200';
+            }
+            const itemsSummary = (tx.items || [])
+              .map((i) => `${Number(i.quantity || 1)}× ${i.name}`)
+              .join(', ');
+
+            return `
+              <article class="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2 shadow-2xs">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-mono text-xs font-extrabold text-[#003087]">${escapeHtml(tx.transaction_code || '')}</span>
+                  <span class="px-2 py-0.5 rounded-full border font-mono text-[10px] font-bold ${condCls}">
+                    Returned · ${escapeHtml(cond)}
+                  </span>
+                </div>
+                <p class="text-xs font-bold text-slate-800 leading-snug">${escapeHtml(itemsSummary || 'Laboratory Apparatus')}</p>
+                <div class="flex items-center justify-between gap-2 text-[10px] font-mono text-slate-500">
+                  <span class="truncate">${escapeHtml(tx.subject_activity || '')}</span>
+                  <span class="shrink-0">${escapeHtml(formatDateTimeShort(tx.time_out || tx.time_in))}</span>
+                </div>
+              </article>
+            `;
+          })
+          .join('');
+      }
+
+      function renderAccountDashboard(data) {
+        const student = data.student || {};
+        const activeLoans = Array.isArray(data.active_transactions) ? data.active_transactions : [];
+        const pastLoans = Array.isArray(data.past_transactions) ? data.past_transactions : [];
+
+        document.getElementById('profile-full-name').textContent = student.full_name || '';
+        document.getElementById('profile-lrn').textContent = student.student_id_lrn || '';
+        document.getElementById('profile-strand').textContent = student.grade_section || 'STEM';
+        document.getElementById('profile-email').textContent = student.school_email || '';
+        document.getElementById('stat-active-count').textContent = String(activeLoans.length);
+        document.getElementById('stat-past-count').textContent = String(pastLoans.length);
+
+        const badge = document.getElementById('account-header-badge');
+        if (badge) {
+          badge.textContent = 'VERIFIED';
+        }
+
+        renderActiveLoans(activeLoans);
+        renderPastLoans(pastLoans);
+
+        document.getElementById('account-loading-box').classList.add('hidden');
+        document.getElementById('account-login-view').classList.add('hidden');
+        document.getElementById('account-dashboard-view').classList.remove('hidden');
+      }
+
+      async function refreshAccountData() {
+        const token = getStudentToken();
+        if (!token) {
+          showLoggedOutView();
+          return;
+        }
+        try {
+          const res = await fetch('/api/students/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.student) {
+            setStudentToken('');
+            showLoggedOutView();
+            if (res.status === 403 && data.account_status) {
+              showAccountLoginError(data.account_status, data.error, data.rejection_reason);
+            }
+            return;
+          }
+          renderAccountDashboard(data);
+        } catch {
+          showLoggedOutView();
+          showAccountLoginError('', 'Unable to reach LabGuard+ server. Please check your lab Wi-Fi.');
+        }
+      }
+
+      async function handleAccountLogin(e) {
+        e.preventDefault();
+        hideAccountLoginError();
+
+        const identifier = (document.getElementById('account-login-identifier').value || '').trim();
+        const password = document.getElementById('account-login-password').value || '';
+        const btn = document.getElementById('account-login-btn');
+
+        if (!identifier || !password) {
+          showAccountLoginError('', 'Please enter your Student ID / LRN (or School Email) and password.');
+          return;
+        }
+
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Signing In...';
+        }
+
+        try {
+          const res = await fetch('/api/students/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, password }),
+          });
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok || !data.token) {
+            showAccountLoginError(
+              data.account_status || '',
+              data.error || 'Invalid Student ID / Email or password.',
+              data.rejection_reason || ''
+            );
+            return;
+          }
+
+          setStudentToken(data.token);
+          document.getElementById('account-login-password').value = '';
+          await refreshAccountData();
+        } catch {
+          showAccountLoginError('', 'Network error while signing in. Please check your lab Wi-Fi connection.');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Sign In to My Account →';
+          }
+        }
+      }
+
+      async function handleAccountSignOut() {
+        const token = getStudentToken();
+        if (token) {
+          try {
+            await fetch('/api/students/logout', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+          } catch {
+            // best-effort logout
+          }
+        }
+        setStudentToken('');
+        hideAccountLoginError();
+        const cpForm = document.getElementById('change-password-form');
+        if (cpForm) cpForm.reset();
+        const cpFeedback = document.getElementById('cp-feedback-box');
+        if (cpFeedback) cpFeedback.classList.add('hidden');
+        showLoggedOutView();
+      }
+
+      function togglePasswordSection() {
+        isSecurityOpen = !isSecurityOpen;
+        const body = document.getElementById('security-panel-body');
+        const chevron = document.getElementById('security-panel-chevron');
+        if (body) body.classList.toggle('hidden', !isSecurityOpen);
+        if (chevron) chevron.textContent = isSecurityOpen ? '−' : '+';
+      }
+
+      function showPasswordFeedback(msg, isSuccess) {
+        const box = document.getElementById('cp-feedback-box');
+        if (!box) return;
+        box.className = isSuccess
+          ? 'rounded-xl p-2.5 border text-xs font-semibold bg-emerald-50 border-emerald-200 text-emerald-900'
+          : 'rounded-xl p-2.5 border text-xs font-semibold bg-red-50 border-red-200 text-red-700';
+        box.textContent = msg;
+        box.classList.remove('hidden');
+      }
+
+      async function handleChangePassword(e) {
+        e.preventDefault();
+        const currentPassword = document.getElementById('cp-current-password').value || '';
+        const newPassword = document.getElementById('cp-new-password').value || '';
+        const confirmPassword = document.getElementById('cp-confirm-password').value || '';
+        const btn = document.getElementById('cp-submit-btn');
+
+        if (newPassword.length < 6) {
+          showPasswordFeedback('New password must be at least 6 characters long.', false);
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          showPasswordFeedback('New password and confirmation do not match.', false);
+          return;
+        }
+
+        const token = getStudentToken();
+        if (!token) {
+          showLoggedOutView();
+          return;
+        }
+
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Updating Password...';
+        }
+
+        try {
+          const res = await fetch('/api/students/change-password', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              current_password: currentPassword,
+              new_password: newPassword,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+
+          if (res.status === 401) {
+            setStudentToken('');
+            showLoggedOutView();
+            showAccountLoginError('', 'Session expired. Please sign in again.');
+            return;
+          }
+
+          if (!res.ok || !data.success) {
+            showPasswordFeedback(data.error || 'Could not update password. Please check your current password.', false);
+            return;
+          }
+
+          document.getElementById('change-password-form').reset();
+          showPasswordFeedback('Password updated successfully!', true);
+        } catch {
+          showPasswordFeedback('Network error while updating password.', false);
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Update Password';
+          }
+        }
+      }
+
+      refreshAccountData();
+    </script>
+  </body>
+</html>

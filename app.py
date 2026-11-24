@@ -20,6 +20,7 @@ import html as html_lib
 import io
 import json
 import logging
+import math
 import os
 import random
 import re
@@ -195,6 +196,12 @@ INITIAL_EQUIPMENT_SEED = [
             "Use wire gauze on a tripod stand when heating over a flame",
             "Rinse and dry thoroughly prior to returning to 1st - 1st Section",
         ]),
+        json.dumps([
+            "Set the beaker on a flat, stable laboratory bench before pouring or mixing solutions.",
+            "Pour liquids smoothly along the spout or down a glass stirring rod to avoid splashing and drips.",
+            "Use the printed graduation marks for approximate volume estimates only; use a graduated cylinder when exact measurement is required.",
+            "When heating, rest the beaker evenly on wire gauze over a tripod stand and stir gently to distribute heat.",
+        ]),
     ),
     (
         2,
@@ -213,6 +220,12 @@ INITIAL_EQUIPMENT_SEED = [
             "Place on a level laboratory bench and read the bottom of the meniscus at eye level",
             "Never heat graduated cylinders directly over a burner",
             "Rinse with distilled water before returning to 2nd - 1st Section",
+        ]),
+        json.dumps([
+            "Position the graduated cylinder upright on a flat, level workbench before filling with liquid.",
+            "Add liquid slowly near the target mark using a funnel or dropper to avoid overshooting the scale.",
+            "Bring your eyes level with the liquid surface and read the exact volume at the lowest curve (bottom) of the meniscus.",
+            "Pour measured liquid carefully into a reaction beaker or flask—do not mix or heat reactive solutions inside the cylinder.",
         ]),
     ),
     (
@@ -233,6 +246,12 @@ INITIAL_EQUIPMENT_SEED = [
             "Support on wire gauze over a tripod stand or clamp neck securely",
             "Allow hot flask to cool completely before handling or returning to 3rd - 1st Section",
         ]),
+        json.dumps([
+            "Fill the round-bodied flask no more than half full so liquids can boil or swirl without overflowing.",
+            "Center the flask on wire gauze over a tripod stand or clamp the slender neck securely to a ring stand before heating.",
+            "Apply steady, moderate heat and swirl gently using heat-resistant tongs to maintain uniform mixing.",
+            "Remove from the heat source carefully and set on a heat-resistant mat to cool completely before transferring contents.",
+        ]),
     ),
     (
         4,
@@ -251,6 +270,12 @@ INITIAL_EQUIPMENT_SEED = [
             "Seat folded filter paper snugly inside the cone when filtering mixtures",
             "Support funnel stem cleanly inside receiving flask to prevent tipping",
             "Wash and dry after reagent transfer before returning to 4th - 1st Section",
+        ]),
+        json.dumps([
+            "Position the funnel stem securely inside the neck of a receiving flask or support it on a ring stand.",
+            "For gravity filtration, fold filter paper into quarters, open one cone pocket, seat it inside the funnel, and dampen lightly with distilled water.",
+            "Pour the mixture slowly down a glass stirring rod onto the side of the filter paper, keeping the liquid below the paper rim.",
+            "Allow gravity filtration to finish completely before lifting the funnel and disposing of solid residue properly.",
         ]),
     ),
     (
@@ -271,6 +296,12 @@ INITIAL_EQUIPMENT_SEED = [
             "Swirl gently by holding the narrow neck to mix reagents without spilling",
             "Rinse and place dry flask back in 1st - 2nd Section",
         ]),
+        json.dumps([
+            "Add measured reagents into the conical body so the tapered walls contain splashes during mixing.",
+            "Hold the narrow neck firmly and move your wrist in a smooth circular motion to swirl solutions evenly without a stirring rod.",
+            "During titration, place white paper beneath the flat base to clearly observe endpoint color changes.",
+            "Cover loosely with a clean stopper or watch glass only when instructed—never seal tightly while heating.",
+        ]),
     ),
     (
         6,
@@ -289,6 +320,12 @@ INITIAL_EQUIPMENT_SEED = [
             "Always keep test tubes upright in the rack when unattended",
             "Use the test tube holder when warming samples and point opening away from peers",
             "Clean all tubes and return complete set to 2nd - 2nd Section",
+        ]),
+        json.dumps([
+            "Place clean test tubes upright in the rack slots and label each sample before adding small reagent volumes.",
+            "Fill each test tube to at most one-third of its height so reactions and gentle heating do not boil over.",
+            "Mix small samples by lightly tapping the lower side of the tube with your finger—never cap the mouth with your thumb.",
+            "Clamp the spring-wire holder near the upper rim when warming over a flame, angling the mouth away from yourself and classmates.",
         ]),
     ),
     (
@@ -309,6 +346,12 @@ INITIAL_EQUIPMENT_SEED = [
             "Center wire gauze securely on top ring before placing glassware",
             "Allow iron frame to cool completely before returning to 3rd - 2nd Section",
         ]),
+        json.dumps([
+            "Set all three legs firmly on a flat, heat-resistant workbench with clear space around the heating zone.",
+            "Center a wire gauze pad on top of the circular ring so glassware rests level and heat distributes evenly.",
+            "Position the alcohol lamp or burner directly beneath the center of the ring before igniting the flame.",
+            "Extinguish the heat source first and leave the stand untouched until the cast-iron frame cools to room temperature.",
+        ]),
     ),
     (
         8,
@@ -327,6 +370,12 @@ INITIAL_EQUIPMENT_SEED = [
             "Lift firmly with both hands using the top knob and lower rim",
             "Ensure smooth rim seal on the base plate before air evacuation",
             "Handle carefully and store upright inside 4th - 2nd Section",
+        ]),
+        json.dumps([
+            "Arrange the demonstration apparatus neatly on the center of the clean, flat base plate before lowering the dome.",
+            "Grasp the top knob with one hand and support the lower rim with the other to lower the bell jar straight down onto the plate.",
+            "Check that the ground-glass rim sits evenly along the gasket seal before starting vacuum or pressure demonstrations.",
+            "Equalize internal air pressure completely through the release valve before lifting the jar straight up off the plate.",
         ]),
     ),
     (
@@ -347,6 +396,12 @@ INITIAL_EQUIPMENT_SEED = [
             "Check sleeves and pockets are clear of loose flammable items",
             "Fold neatly and hang back inside 1st - 3rd Section after session",
         ]),
+        json.dumps([
+            "Put on the laboratory gown before entering the active workbench area and fasten every button from collar to hem.",
+            "Keep sleeves extended down to your wrists so forearms remain shielded from accidental reagent splashes.",
+            "Remove the gown before leaving the laboratory or handling personal items such as phones, food, or notebooks.",
+            "Inspect for spills or stains after your activity, then fold or hang the clean gown neatly in its designated rack.",
+        ]),
     ),
     (
         10,
@@ -365,6 +420,12 @@ INITIAL_EQUIPMENT_SEED = [
             "Put on PPE glasses, facemask, and gloves before handling any chemicals",
             "Use glass stirring rod gently—do not strike beaker walls or bottom",
             "Sanitize PPE glasses and stirring rod before returning to 2nd - 3rd Section",
+        ]),
+        json.dumps([
+            "Put on the safety glasses, facemask, and protective gloves first—ensure glasses fit snugly over your eyes before touching reagents.",
+            "Hold the glass stirring rod near the top and stir solutions in smooth, controlled circular motions without tapping glass walls.",
+            "Place the stirring rod across a beaker spout to guide liquid cleanly down the rod during decanting or pouring.",
+            "Rinse the glass stirring rod with distilled water, wipe safety glasses with disinfectant, and dispose of single-use gloves properly.",
         ]),
     ),
     (
@@ -385,8 +446,17 @@ INITIAL_EQUIPMENT_SEED = [
             "Clean objective lenses with optical lens paper only",
             "Lower stage to bottom, select 4x objective, and return to 3rd - 3rd Section",
         ]),
+        json.dumps([
+            "Set the microscope squarely on the bench, switch on the LED illuminator, and rotate the nosepiece to the lowest-power (4x) objective.",
+            "Secure the prepared glass slide onto the mechanical stage with stage clips and center the specimen over the light opening.",
+            "Focus first with the coarse adjustment knob under 4x magnification, then switch to 10x or 40x and use ONLY the fine adjustment knob to sharpen.",
+            "When finished, rotate back to the 4x objective, lower the stage completely, remove the slide, switch off the LED light, and wrap the cord neatly.",
+        ]),
     ),
 ]
+
+SEED_EQUIPMENT_BY_ID = {row[0]: row for row in INITIAL_EQUIPMENT_SEED}
+SEED_USAGE_INSTRUCTIONS_BY_QR = {row[1]: row[13] for row in INITIAL_EQUIPMENT_SEED}
 
 
 # ==============================================================================
@@ -722,49 +792,54 @@ def sync_led_from_db(*, beep_on_change: bool = False) -> Dict[str, Any]:
     return led_controller.set_safety_level(status["level"], beep_on_change=beep_on_change)
 
 
+def _parse_json_str_list(raw: Any) -> list:
+    if isinstance(raw, list):
+        return [str(x).strip() for x in raw if str(x).strip()]
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return [str(x).strip() for x in parsed if str(x).strip()]
+    except Exception:
+        pass
+    return []
+
+
+def _seed_tx_item(equipment_id: int, quantity: int) -> Dict[str, Any]:
+    row = SEED_EQUIPMENT_BY_ID[equipment_id]
+    return {
+        "equipment_id": row[0],
+        "qr_code": row[1],
+        "name": row[2],
+        "category": row[3],
+        "image_url": row[4],
+        "storage_compartment": row[6],
+        "quantity": quantity,
+        "unit": row[9],
+        "safety_level": row[11],
+        "prerequisites": _parse_json_str_list(row[12]),
+        "usage_instructions": _parse_json_str_list(row[13]),
+    }
+
+
 def _seed_initial_transactions(cur: sqlite3.Cursor, now_dt: datetime) -> None:
     """Seed all 4 reference transactions (IDs 101..104) matching src/data/seedData.ts."""
+    acc_rows = cur.execute("SELECT id, student_id_lrn FROM student_accounts").fetchall()
+    acc_by_lrn = {str(r["student_id_lrn"]).upper(): r["id"] for r in acc_rows}
+
     seed_rows = [
         (
             101,
             "LG-JRC-101",
+            acc_by_lrn.get("AUJRC-2026-0101"),
             "One Enrique Sebastian G. Abalos",
             "AUJRC-2026-0101",
             "STEM",
             "one.abalos@arellano.edu.ph",
             "General Biology 1 — Microscopy & Cell Structure",
             "Ms. Lara Marie Agustin Puertollano",
-            json.dumps([
-                {
-                    "equipment_id": 11,
-                    "qr_code": "LG-EQ-011",
-                    "name": "Compound Light Microscope",
-                    "category": "Optical & Microscopy",
-                    "image_url": "/images/equipment/LG-EQ-011.svg",
-                    "storage_compartment": "3rd - 3rd Section",
-                    "quantity": 2,
-                    "unit": "unit",
-                    "safety_level": "SAFE",
-                    "prerequisites": [
-                        "Carry microscope with two hands (one on arm, one under base)",
-                        "Clean objective lenses with optical lens paper only",
-                    ],
-                },
-                {
-                    "equipment_id": 9,
-                    "qr_code": "LG-EQ-009",
-                    "name": "Laboratory Gown",
-                    "category": "Safety & PPE",
-                    "image_url": "/images/equipment/LG-EQ-009.svg",
-                    "storage_compartment": "1st - 3rd Section",
-                    "quantity": 2,
-                    "unit": "pc",
-                    "safety_level": "SAFE",
-                    "prerequisites": [
-                        "Button the laboratory gown completely from collar to hem before working",
-                    ],
-                },
-            ]),
+            json.dumps([_seed_tx_item(11, 2), _seed_tx_item(9, 2)]),
             4,
             json.dumps([
                 "Wearing buttoned laboratory gown & closed-toe shoes",
@@ -781,56 +856,14 @@ def _seed_initial_transactions(cur: sqlite3.Cursor, now_dt: datetime) -> None:
         (
             102,
             "LG-JRC-102",
+            acc_by_lrn.get("AUJRC-2026-0102"),
             "Christine S. Contreras",
             "AUJRC-2026-0102",
             "STEM",
             "christine.contreras@arellano.edu.ph",
             "General Chemistry 2 — Acid-Base Titration Lab",
             "Ms. Lara Marie Agustin Puertollano",
-            json.dumps([
-                {
-                    "equipment_id": 1,
-                    "qr_code": "LG-EQ-001",
-                    "name": "Beaker",
-                    "category": "Glassware & Measuring",
-                    "image_url": "/images/equipment/LG-EQ-001.svg",
-                    "storage_compartment": "1st - 1st Section",
-                    "quantity": 2,
-                    "unit": "pc",
-                    "safety_level": "SAFE",
-                    "prerequisites": [
-                        "Inspect glassware for chips or hairline cracks before pouring liquids",
-                    ],
-                },
-                {
-                    "equipment_id": 5,
-                    "qr_code": "LG-EQ-005",
-                    "name": "Erlenmeyer Flask",
-                    "category": "Glassware & Measuring",
-                    "image_url": "/images/equipment/LG-EQ-005.svg",
-                    "storage_compartment": "1st - 2nd Section",
-                    "quantity": 2,
-                    "unit": "pc",
-                    "safety_level": "SAFE",
-                    "prerequisites": [
-                        "Swirl gently by holding the narrow neck to mix reagents without spilling",
-                    ],
-                },
-                {
-                    "equipment_id": 7,
-                    "qr_code": "LG-EQ-007",
-                    "name": "Tripod Stand",
-                    "category": "Heating & Thermal",
-                    "image_url": "/images/equipment/LG-EQ-007.svg",
-                    "storage_compartment": "3rd - 2nd Section",
-                    "quantity": 1,
-                    "unit": "unit",
-                    "safety_level": "CAUTION",
-                    "prerequisites": [
-                        "Allow iron frame to cool completely before returning to 3rd - 2nd Section",
-                    ],
-                },
-            ]),
+            json.dumps([_seed_tx_item(1, 2), _seed_tx_item(5, 2), _seed_tx_item(7, 1)]),
             5,
             json.dumps([
                 "Wearing buttoned laboratory gown & chemical splash goggles",
@@ -847,42 +880,14 @@ def _seed_initial_transactions(cur: sqlite3.Cursor, now_dt: datetime) -> None:
         (
             103,
             "LG-JRC-103",
+            acc_by_lrn.get("AUJRC-2026-0103"),
             "Queen Hannah A. Dones",
             "AUJRC-2026-0103",
             "HUMSS",
             "queenhannah.dones@arellano.edu.ph",
             "General Science — Liquid Measurement & PPE Prep",
             "Ms. Lara Marie Agustin Puertollano",
-            json.dumps([
-                {
-                    "equipment_id": 2,
-                    "qr_code": "LG-EQ-002",
-                    "name": "Graduated Cylinder",
-                    "category": "Glassware & Measuring",
-                    "image_url": "/images/equipment/LG-EQ-002.svg",
-                    "storage_compartment": "2nd - 1st Section",
-                    "quantity": 1,
-                    "unit": "pc",
-                    "safety_level": "SAFE",
-                    "prerequisites": [
-                        "Place on a level laboratory bench and read the bottom of the meniscus at eye level",
-                    ],
-                },
-                {
-                    "equipment_id": 10,
-                    "qr_code": "LG-EQ-010",
-                    "name": "Stirring Rod & PPE Kit (Glasses, Facemask, Gloves)",
-                    "category": "Safety & PPE",
-                    "image_url": "/images/equipment/LG-EQ-010.svg",
-                    "storage_compartment": "2nd - 3rd Section",
-                    "quantity": 1,
-                    "unit": "kit",
-                    "safety_level": "SAFE",
-                    "prerequisites": [
-                        "Put on PPE glasses, facemask, and gloves before handling any chemicals",
-                    ],
-                },
-            ]),
+            json.dumps([_seed_tx_item(2, 1), _seed_tx_item(10, 1)]),
             2,
             json.dumps([
                 "Wearing buttoned laboratory gown & closed-toe shoes",
@@ -898,28 +903,14 @@ def _seed_initial_transactions(cur: sqlite3.Cursor, now_dt: datetime) -> None:
         (
             104,
             "LG-JRC-104",
+            acc_by_lrn.get("AUJRC-2026-0104"),
             "Collin Lenard M. Marcos",
             "AUJRC-2026-0104",
             "ABM",
             "collin.marcos@arellano.edu.ph",
             "General Chemistry 1 — Filtration & Solution Mixing",
             "Ms. Lara Marie Agustin Puertollano",
-            json.dumps([
-                {
-                    "equipment_id": 4,
-                    "qr_code": "LG-EQ-004",
-                    "name": "Glass Funnel",
-                    "category": "Glassware & Measuring",
-                    "image_url": "/images/equipment/LG-EQ-004.svg",
-                    "storage_compartment": "4th - 1st Section",
-                    "quantity": 2,
-                    "unit": "pc",
-                    "safety_level": "SAFE",
-                    "prerequisites": [
-                        "Wash and dry after reagent transfer before returning to 4th - 1st Section",
-                    ],
-                },
-            ]),
+            json.dumps([_seed_tx_item(4, 2)]),
             2,
             json.dumps([
                 "Wearing buttoned laboratory gown & closed-toe shoes",
@@ -937,11 +928,11 @@ def _seed_initial_transactions(cur: sqlite3.Cursor, now_dt: datetime) -> None:
     cur.executemany(
         """
         INSERT INTO student_transactions (
-            id, transaction_code, student_name, student_id_lrn, grade_section,
-            school_email, subject_activity, teacher_name, items_json,
+            id, transaction_code, student_account_id, student_name, student_id_lrn,
+            grade_section, school_email, subject_activity, teacher_name, items_json,
             total_items_count, safety_checked_json, time_in, expected_return,
             time_out, return_condition, return_notes, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         seed_rows,
     )
@@ -1091,6 +1082,7 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
             condition TEXT NOT NULL,
             safety_level TEXT NOT NULL,
             prerequisites_json TEXT NOT NULL,
+            usage_instructions_json TEXT NOT NULL DEFAULT '[]',
             is_active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL
         )
@@ -1117,6 +1109,7 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
         CREATE TABLE IF NOT EXISTS student_transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             transaction_code TEXT NOT NULL,
+            student_account_id INTEGER,
             student_name TEXT NOT NULL,
             student_id_lrn TEXT NOT NULL,
             grade_section TEXT NOT NULL,
@@ -1135,6 +1128,19 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
         )
         """
     )
+
+    # Auto-migrate existing SQLite databases created before SPEC-02
+    eq_cols = {r["name"] for r in cur.execute("PRAGMA table_info(equipment)").fetchall()}
+    if "usage_instructions_json" not in eq_cols:
+        cur.execute(
+            "ALTER TABLE equipment ADD COLUMN usage_instructions_json TEXT NOT NULL DEFAULT '[]'"
+        )
+
+    tx_cols = {
+        r["name"] for r in cur.execute("PRAGMA table_info(student_transactions)").fetchall()
+    }
+    if "student_account_id" not in tx_cols:
+        cur.execute("ALTER TABLE student_transactions ADD COLUMN student_account_id INTEGER")
 
     cur.execute(
         """
@@ -1203,11 +1209,23 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
                 INSERT INTO equipment (
                     id, qr_code, name, category, image_url, description,
                     storage_compartment, total_qty, available_qty, unit,
-                    condition, safety_level, prerequisites_json, is_active, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                    condition, safety_level, prerequisites_json, usage_instructions_json,
+                    is_active, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                 """,
                 (*row, now_iso),
             )
+    else:
+        existing_eq = cur.execute(
+            "SELECT id, qr_code, usage_instructions_json FROM equipment"
+        ).fetchall()
+        for eq_row in existing_eq:
+            default_usage_json = SEED_USAGE_INSTRUCTIONS_BY_QR.get(eq_row["qr_code"])
+            if default_usage_json and not _parse_json_str_list(eq_row["usage_instructions_json"]):
+                cur.execute(
+                    "UPDATE equipment SET usage_instructions_json = ? WHERE id = ?",
+                    (default_usage_json, eq_row["id"]),
+                )
 
     cur.execute("SELECT COUNT(*) FROM safety_status")
     if cur.fetchone()[0] == 0:
@@ -1222,10 +1240,6 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
                 now_iso,
             ),
         )
-
-    cur.execute("SELECT COUNT(*) FROM student_transactions")
-    if cur.fetchone()[0] == 0:
-        _seed_initial_transactions(cur, now_dt)
 
     cur.execute("SELECT COUNT(*) FROM student_accounts")
     if cur.fetchone()[0] == 0:
@@ -1244,6 +1258,22 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
                 r["school_email"],
                 r["status"],
             )
+
+    cur.execute("SELECT COUNT(*) FROM student_transactions")
+    if cur.fetchone()[0] == 0:
+        _seed_initial_transactions(cur, now_dt)
+    else:
+        cur.execute(
+            """
+            UPDATE student_transactions
+            SET student_account_id = (
+                SELECT sa.id FROM student_accounts sa
+                WHERE UPPER(sa.student_id_lrn) = UPPER(student_transactions.student_id_lrn)
+                LIMIT 1
+            )
+            WHERE student_account_id IS NULL
+            """
+        )
 
     conn.commit()
     safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
@@ -1314,6 +1344,39 @@ def require_admin_auth(*, allow_query_token: bool = False):
         return wrapper
 
     return decorator
+
+
+def get_authenticated_student(
+    req: Any, conn: Optional[sqlite3.Connection] = None
+) -> Tuple[Optional[sqlite3.Row], Optional[str]]:
+    token = extract_bearer_token(req, allow_query_token=False)
+    if not token:
+        return None, None
+    owns_conn = conn is None
+    if conn is None:
+        conn = get_db()
+    try:
+        sess = conn.execute(
+            "SELECT * FROM student_sessions WHERE token = ?", (token,)
+        ).fetchone()
+        if not sess:
+            return None, None
+        expires_dt = _parse_iso_utc(sess["expires_at"])
+        if expires_dt is None or expires_dt <= datetime.now(timezone.utc):
+            conn.execute("DELETE FROM student_sessions WHERE token = ?", (token,))
+            conn.commit()
+            return None, None
+        student_row = conn.execute(
+            "SELECT * FROM student_accounts WHERE id = ?", (sess["student_id"],)
+        ).fetchone()
+        if not student_row:
+            conn.execute("DELETE FROM student_sessions WHERE token = ?", (token,))
+            conn.commit()
+            return None, None
+        return student_row, token
+    finally:
+        if owns_conn:
+            conn.close()
 
 
 def serialize_student(row: sqlite3.Row) -> Dict[str, Any]:
@@ -1488,6 +1551,13 @@ def student_register_page():
     return render_template("student_register.html")
 
 
+@app.route("/student/account")
+@app.route("/student_account.html")
+def student_account_page():
+    """Serves Student Account Portal & Active Loans page (templates/student_account.html)."""
+    return render_template("student_account.html")
+
+
 @app.route("/admin")
 @app.route("/admin.html")
 def admin_dashboard_page():
@@ -1517,6 +1587,8 @@ def serve_public_assets(filename: str):
 # REST API ENDPOINTS (SQLite3 + GPIO + WebSockets)
 # ==============================================================================
 def serialize_equipment(row: sqlite3.Row) -> Dict[str, Any]:
+    keys = row.keys()
+    usage_raw = row["usage_instructions_json"] if "usage_instructions_json" in keys else "[]"
     return {
         "id": row["id"],
         "qr_code": row["qr_code"],
@@ -1530,23 +1602,89 @@ def serialize_equipment(row: sqlite3.Row) -> Dict[str, Any]:
         "unit": row["unit"],
         "condition": row["condition"],
         "safety_level": row["safety_level"],
-        "prerequisites": json.loads(row["prerequisites_json"] or "[]"),
+        "prerequisites": _parse_json_str_list(row["prerequisites_json"]),
+        "usage_instructions": _parse_json_str_list(usage_raw),
         "is_active": bool(row["is_active"]),
         "created_at": row["created_at"],
     }
 
 
-def serialize_transaction(row: sqlite3.Row) -> Dict[str, Any]:
+def _build_equipment_lookup(
+    conn: sqlite3.Connection,
+) -> Tuple[Dict[int, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    rows = conn.execute("SELECT * FROM equipment").fetchall()
+    by_id: Dict[int, Dict[str, Any]] = {}
+    by_qr: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        item = serialize_equipment(r)
+        by_id[int(item["id"])] = item
+        by_qr[str(item["qr_code"]).upper()] = item
+    return by_id, by_qr
+
+
+def _enrich_items_with_instructions(
+    items: list,
+    eq_by_id: Optional[Dict[int, Dict[str, Any]]] = None,
+    eq_by_qr: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> list:
+    enriched = []
+    for raw_item in items or []:
+        if not isinstance(raw_item, dict):
+            continue
+        item = dict(raw_item)
+        catalog_eq = None
+        if eq_by_id is not None and item.get("equipment_id") is not None:
+            try:
+                catalog_eq = eq_by_id.get(int(item["equipment_id"]))
+            except (TypeError, ValueError):
+                catalog_eq = None
+        if catalog_eq is None and eq_by_qr is not None and item.get("qr_code"):
+            catalog_eq = eq_by_qr.get(str(item["qr_code"]).upper())
+
+        prereqs = _parse_json_str_list(item.get("prerequisites"))
+        if not prereqs and catalog_eq:
+            prereqs = list(catalog_eq.get("prerequisites") or [])
+        item["prerequisites"] = prereqs
+
+        usage = _parse_json_str_list(item.get("usage_instructions"))
+        if not usage and catalog_eq:
+            usage = list(catalog_eq.get("usage_instructions") or [])
+        item["usage_instructions"] = usage
+
+        if not item.get("image_url"):
+            qr = item.get("qr_code") or (catalog_eq.get("qr_code") if catalog_eq else "LG-EQ-001")
+            item["image_url"] = (
+                (catalog_eq.get("image_url") if catalog_eq else None)
+                or f"/images/equipment/{qr}.svg"
+            )
+        enriched.append(item)
+    return enriched
+
+
+def serialize_transaction(
+    row: sqlite3.Row,
+    *,
+    eq_by_id: Optional[Dict[int, Dict[str, Any]]] = None,
+    eq_by_qr: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    keys = row.keys()
+    raw_items = json.loads(row["items_json"] or "[]")
+    items = (
+        _enrich_items_with_instructions(raw_items, eq_by_id=eq_by_id, eq_by_qr=eq_by_qr)
+        if (eq_by_id is not None or eq_by_qr is not None)
+        else raw_items
+    )
     return {
         "id": row["id"],
         "transaction_code": row["transaction_code"],
+        "student_account_id": row["student_account_id"] if "student_account_id" in keys else None,
         "student_name": row["student_name"],
         "student_id_lrn": row["student_id_lrn"],
         "grade_section": row["grade_section"],
         "school_email": row["school_email"],
         "subject_activity": row["subject_activity"],
         "teacher_name": row["teacher_name"],
-        "items": json.loads(row["items_json"] or "[]"),
+        "items": items,
         "total_items_count": row["total_items_count"],
         "safety_prerequisites_checked": json.loads(row["safety_checked_json"] or "[]"),
         "time_in": row["time_in"],
@@ -1594,9 +1732,16 @@ def api_state():
     finally:
         conn.close()
 
+    equipment_list = [serialize_equipment(r) for r in eq_rows]
+    eq_by_id = {int(e["id"]): e for e in equipment_list}
+    eq_by_qr = {str(e["qr_code"]).upper(): e for e in equipment_list}
+
     return jsonify({
-        "equipment": [serialize_equipment(r) for r in eq_rows],
-        "transactions": [serialize_transaction(r) for r in tx_rows],
+        "equipment": equipment_list,
+        "transactions": [
+            serialize_transaction(r, eq_by_id=eq_by_id, eq_by_qr=eq_by_qr)
+            for r in tx_rows
+        ],
         "safety_status": serialize_safety_status(safety_row),
         "student_presets": STUDENT_PRESETS,
     })
@@ -1636,7 +1781,8 @@ def api_create_checkout_session():
                 "quantity": qty,
                 "unit": eq["unit"],
                 "safety_level": eq["safety_level"],
-                "prerequisites": json.loads(eq["prerequisites_json"] or "[]"),
+                "prerequisites": _parse_json_str_list(eq["prerequisites_json"]),
+                "usage_instructions": _parse_json_str_list(eq["usage_instructions_json"]),
             })
 
         token = "CHK-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
@@ -1687,21 +1833,30 @@ def api_get_checkout_session(token: str):
             "SELECT * FROM checkout_sessions WHERE session_token = ?", (token,)
         ).fetchone()
         safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+        eq_by_id, eq_by_qr = _build_equipment_lookup(conn)
     finally:
         conn.close()
 
     if not row:
         return jsonify({"error": "Checkout QR session not found or expired."}), 404
 
+    basket_items = _enrich_items_with_instructions(
+        json.loads(row["basket_json"] or "[]"), eq_by_id=eq_by_id, eq_by_qr=eq_by_qr
+    )
     completed_tx = (
         json.loads(row["completed_transaction_json"])
         if row["completed_transaction_json"]
         else None
     )
+    if isinstance(completed_tx, dict) and isinstance(completed_tx.get("items"), list):
+        completed_tx["items"] = _enrich_items_with_instructions(
+            completed_tx["items"], eq_by_id=eq_by_id, eq_by_qr=eq_by_qr
+        )
+
     return jsonify({
         "session": {
             "session_token": row["session_token"],
-            "basket_items": json.loads(row["basket_json"] or "[]"),
+            "basket_items": basket_items,
             "qr_data_url": row["qr_data_url"],
             "mobile_url": row["mobile_url"],
             "status": row["status"],
@@ -1719,15 +1874,54 @@ def api_complete_checkout_session(token: str):
     data = request.get_json(silent=True) or {}
     conn = get_db()
     try:
+        student_row, _ = get_authenticated_student(request, conn=conn)
+        if not student_row:
+            return jsonify({"error": "Student login required to complete checkout."}), 401
+
+        if student_row["status"] != "approved":
+            return (
+                jsonify({
+                    "error": "Your student account is not approved for equipment checkout.",
+                    "account_status": student_row["status"],
+                    "rejection_reason": student_row["rejection_reason"] or "",
+                }),
+                403,
+            )
+
         sess_row = conn.execute(
             "SELECT * FROM checkout_sessions WHERE session_token = ?", (token,)
         ).fetchone()
+        safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
 
         if sess_row and sess_row["status"] == "completed" and sess_row["completed_transaction_json"]:
+            completed_tx = json.loads(sess_row["completed_transaction_json"])
+            tx_acc_id = completed_tx.get("student_account_id")
+            tx_lrn = str(completed_tx.get("student_id_lrn") or "").strip().upper()
+            owns_tx = (
+                tx_acc_id is not None and int(tx_acc_id) == int(student_row["id"])
+            ) or (
+                tx_acc_id is None and tx_lrn == str(student_row["student_id_lrn"]).upper()
+            )
+            if not owns_tx:
+                return (
+                    jsonify({
+                        "error": "This checkout session was already completed by another student."
+                    }),
+                    403,
+                )
             return jsonify({
                 "success": True,
-                "transaction": json.loads(sess_row["completed_transaction_json"]),
+                "transaction": completed_tx,
+                "safety_status": serialize_safety_status(safety_row),
             })
+
+        if safety_row and safety_row["level"] == "UNSAFE":
+            return (
+                jsonify({
+                    "error": "Laboratory LED Safety Status is RED (UNSAFE). Equipment checkout is paused."
+                }),
+                403,
+            )
 
         basket_items = (
             json.loads(sess_row["basket_json"])
@@ -1737,13 +1931,22 @@ def api_complete_checkout_session(token: str):
         if not basket_items:
             return jsonify({"error": "No equipment items found in checkout session."}), 400
 
-        student_name = str(data.get("student_name") or "").strip()
-        student_id_lrn = str(data.get("student_id_lrn") or "").strip()
-        grade_section = str(data.get("grade_section") or "").strip()
-        school_email = str(data.get("school_email") or "").strip().lower()
+        # Anti-spoofing: strictly populate student identity from verified student_accounts record
+        student_account_id = int(student_row["id"])
+        student_name = str(student_row["full_name"]).strip()
+        student_id_lrn = str(student_row["student_id_lrn"]).strip().upper()
+        grade_section = str(student_row["grade_section"]).strip().upper()
+        school_email = str(student_row["school_email"]).strip().lower()
+
         subject_activity = str(data.get("subject_activity") or "").strip()
         teacher_name = str(data.get("teacher_name") or "").strip()
-        expected_hours = float(data.get("expected_return_hours") or 2)
+        try:
+            expected_hours = float(data.get("expected_return_hours") or 2)
+            if not math.isfinite(expected_hours) or expected_hours <= 0:
+                expected_hours = 2.0
+        except (TypeError, ValueError):
+            expected_hours = 2.0
+
         raw_checked = data.get("safety_prerequisites_checked")
         safety_checked = (
             [str(x) for x in raw_checked if x]
@@ -1755,22 +1958,35 @@ def api_complete_checkout_session(token: str):
             ]
         )
 
-        if not (student_name and student_id_lrn and grade_section and subject_activity and teacher_name):
-            return jsonify({"error": "Please complete all required student information fields."}), 400
+        if not (subject_activity and teacher_name):
+            return (
+                jsonify({
+                    "error": "Please enter the Science Subject / Lab Activity and Supervising Teacher."
+                }),
+                400,
+            )
 
-        # Validate stock for all items before mutating
+        # Validate stock for all items (aggregating duplicate IDs) before mutating,
+        # and snapshot the latest usage_instructions & prerequisites from equipment table.
+        requested_totals: Dict[int, int] = {}
         resolved_items = []
         for item in basket_items:
+            eq_id = int(item["equipment_id"])
             eq = conn.execute(
-                "SELECT * FROM equipment WHERE id = ?", (int(item["equipment_id"]),)
+                "SELECT * FROM equipment WHERE id = ? AND is_active = 1", (eq_id,)
             ).fetchone()
             qty = max(1, int(item.get("quantity", 1)))
-            if not eq or eq["available_qty"] < qty:
-                return jsonify({"error": f"Insufficient stock for {item.get('name', 'equipment')}."}), 400
+            requested_totals[eq_id] = requested_totals.get(eq_id, 0) + qty
+            if not eq or eq["available_qty"] < requested_totals[eq_id]:
+                return (
+                    jsonify({"error": f"Insufficient stock for {item.get('name', 'equipment')}."}),
+                    400,
+                )
             resolved_items.append((eq, qty))
 
         total_units = 0
         has_caution = False
+        snapshot_items = []
         for eq, qty in resolved_items:
             conn.execute(
                 "UPDATE equipment SET available_qty = MAX(0, available_qty - ?) WHERE id = ?",
@@ -1779,6 +1995,19 @@ def api_complete_checkout_session(token: str):
             total_units += qty
             if eq["safety_level"] == "CAUTION":
                 has_caution = True
+            snapshot_items.append({
+                "equipment_id": eq["id"],
+                "qr_code": eq["qr_code"],
+                "name": eq["name"],
+                "category": eq["category"],
+                "image_url": eq["image_url"] or f"/images/equipment/{eq['qr_code']}.svg",
+                "storage_compartment": eq["storage_compartment"],
+                "quantity": qty,
+                "unit": eq["unit"],
+                "safety_level": eq["safety_level"],
+                "prerequisites": _parse_json_str_list(eq["prerequisites_json"]),
+                "usage_instructions": _parse_json_str_list(eq["usage_instructions_json"]),
+            })
 
         max_id_row = conn.execute("SELECT MAX(id) FROM student_transactions").fetchone()
         next_id = max(100, (max_id_row[0] or 100)) + 1
@@ -1790,22 +2019,23 @@ def api_complete_checkout_session(token: str):
         conn.execute(
             """
             INSERT INTO student_transactions (
-                id, transaction_code, student_name, student_id_lrn, grade_section,
-                school_email, subject_activity, teacher_name, items_json,
+                id, transaction_code, student_account_id, student_name, student_id_lrn,
+                grade_section, school_email, subject_activity, teacher_name, items_json,
                 total_items_count, safety_checked_json, time_in, expected_return,
                 time_out, return_condition, return_notes, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, '', 'Borrowed / In Lab')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, '', 'Borrowed / In Lab')
             """,
             (
                 next_id,
                 tx_code,
+                student_account_id,
                 student_name,
                 student_id_lrn,
                 grade_section,
-                school_email or f"{student_id_lrn.lower()}@arellano.edu.ph",
+                school_email,
                 subject_activity,
                 teacher_name,
-                json.dumps(basket_items),
+                json.dumps(snapshot_items),
                 total_units,
                 json.dumps(safety_checked),
                 now_iso,
@@ -1813,8 +2043,7 @@ def api_complete_checkout_session(token: str):
             ),
         )
 
-        prev_safety_row = conn.execute("SELECT level FROM safety_status WHERE id = 1").fetchone()
-        prev_level = prev_safety_row["level"] if prev_safety_row else "SAFE"
+        prev_level = safety_row["level"] if safety_row else "SAFE"
 
         if has_caution:
             conn.execute(
@@ -1840,8 +2069,8 @@ def api_complete_checkout_session(token: str):
             )
 
         conn.commit()
-        safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
-        safety_dict = serialize_safety_status(safety_row)
+        updated_safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+        safety_dict = serialize_safety_status(updated_safety_row)
     finally:
         conn.close()
 
@@ -2236,29 +2465,10 @@ def api_student_login():
 
 @app.route("/api/students/me", methods=["GET"])
 def api_student_me():
-    token = extract_bearer_token(request, allow_query_token=False)
-    if not token:
-        return jsonify({"error": "Student authentication required."}), 401
-
     conn = get_db()
     try:
-        sess = conn.execute(
-            "SELECT * FROM student_sessions WHERE token = ?", (token,)
-        ).fetchone()
-        if not sess:
-            return jsonify({"error": "Student authentication required."}), 401
-        expires_dt = _parse_iso_utc(sess["expires_at"])
-        if expires_dt is None or expires_dt <= datetime.now(timezone.utc):
-            conn.execute("DELETE FROM student_sessions WHERE token = ?", (token,))
-            conn.commit()
-            return jsonify({"error": "Student authentication required."}), 401
-
-        row = conn.execute(
-            "SELECT * FROM student_accounts WHERE id = ?", (sess["student_id"],)
-        ).fetchone()
+        row, _ = get_authenticated_student(request, conn=conn)
         if not row:
-            conn.execute("DELETE FROM student_sessions WHERE token = ?", (token,))
-            conn.commit()
             return jsonify({"error": "Student authentication required."}), 401
 
         if row["status"] != "approved":
@@ -2270,11 +2480,74 @@ def api_student_me():
                 }),
                 403,
             )
+
         student_dict = serialize_student(row)
+        eq_by_id, eq_by_qr = _build_equipment_lookup(conn)
+        tx_rows = conn.execute(
+            """
+            SELECT * FROM student_transactions
+            WHERE student_account_id = ? OR UPPER(student_id_lrn) = UPPER(?)
+            ORDER BY time_in DESC, id DESC
+            """,
+            (row["id"], row["student_id_lrn"]),
+        ).fetchall()
+
+        active_transactions = []
+        past_transactions = []
+        for tx_row in tx_rows:
+            tx_dict = serialize_transaction(tx_row, eq_by_id=eq_by_id, eq_by_qr=eq_by_qr)
+            if tx_dict["status"] == "Returned / Logged Out":
+                past_transactions.append(tx_dict)
+            else:
+                active_transactions.append(tx_dict)
     finally:
         conn.close()
 
-    return jsonify({"student": student_dict})
+    return jsonify({
+        "student": student_dict,
+        "active_transactions": active_transactions,
+        "past_transactions": past_transactions,
+    })
+
+
+@app.route("/api/students/change-password", methods=["POST"])
+def api_student_change_password():
+    data = request.get_json(silent=True) or {}
+    current_password = str(data.get("current_password") or "")
+    new_password = str(data.get("new_password") or "")
+
+    conn = get_db()
+    try:
+        row, _ = get_authenticated_student(request, conn=conn)
+        if not row:
+            return jsonify({"error": "Student authentication required."}), 401
+
+        if row["status"] != "approved":
+            return (
+                jsonify({
+                    "error": "Your student account is not approved for active access.",
+                    "account_status": row["status"],
+                    "rejection_reason": row["rejection_reason"] or "",
+                }),
+                403,
+            )
+
+        if not current_password or not verify_password(current_password, row["password_hash"]):
+            return jsonify({"error": "Current password is incorrect."}), 400
+
+        if len(new_password) < 6:
+            return jsonify({"error": "New password must be at least 6 characters long."}), 400
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "UPDATE student_accounts SET password_hash = ?, updated_at = ? WHERE id = ?",
+            (hash_password(new_password), now_iso, row["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return jsonify({"success": True})
 
 
 @app.route("/api/students/logout", methods=["POST"])
@@ -2626,14 +2899,25 @@ def api_add_equipment():
             if isinstance(raw_prereqs, list) and any(str(p).strip() for p in raw_prereqs)
             else ["Wear buttoned laboratory gown and follow AU-JRC safety rules"]
         )
+        raw_usage = data.get("usage_instructions")
+        usage_instructions = (
+            [str(u).strip() for u in raw_usage if str(u).strip()]
+            if isinstance(raw_usage, list) and any(str(u).strip() for u in raw_usage)
+            else [
+                f"Inspect {name} carefully before starting your laboratory activity.",
+                "Operate properly under the guidance of your supervising science teacher.",
+                f"Clean and return to {compartment} after use.",
+            ]
+        )
 
         conn.execute(
             """
             INSERT INTO equipment (
                 id, qr_code, name, category, image_url, description,
                 storage_compartment, total_qty, available_qty, unit,
-                condition, safety_level, prerequisites_json, is_active, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Good', ?, ?, 1, ?)
+                condition, safety_level, prerequisites_json, usage_instructions_json,
+                is_active, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Good', ?, ?, ?, 1, ?)
             """,
             (
                 next_id,
@@ -2648,6 +2932,7 @@ def api_add_equipment():
                 unit,
                 safety_level,
                 json.dumps(prereqs),
+                json.dumps(usage_instructions),
                 datetime.now(timezone.utc).isoformat(),
             ),
         )
@@ -2689,11 +2974,23 @@ def api_modify_equipment(item_id: int):
         if not row:
             return jsonify({"error": "Equipment not found."}), 404
 
-        next_name = str(data["name"]).strip() if "name" in data and data["name"] is not None else row["name"]
-        next_category = str(data["category"]).strip() if "category" in data and data["category"] is not None else row["category"]
-        next_description = str(data["description"]).strip() if "description" in data and data["description"] is not None else row["description"]
+        next_name = (
+            str(data["name"]).strip() or row["name"]
+            if "name" in data and data["name"] is not None
+            else row["name"]
+        )
+        next_category = (
+            str(data["category"]).strip() or row["category"]
+            if "category" in data and data["category"] is not None
+            else row["category"]
+        )
+        next_description = (
+            str(data["description"]).strip()
+            if "description" in data and data["description"] is not None
+            else row["description"]
+        )
         next_compartment = (
-            str(data["storage_compartment"]).strip()
+            str(data["storage_compartment"]).strip() or row["storage_compartment"]
             if "storage_compartment" in data and data["storage_compartment"] is not None
             else row["storage_compartment"]
         )
@@ -2708,7 +3005,7 @@ def api_modify_equipment(item_id: int):
             else row["safety_level"]
         )
         next_image_url = (
-            str(data["image_url"]).strip()
+            str(data["image_url"]).strip() or row["image_url"]
             if "image_url" in data and data["image_url"] is not None
             else row["image_url"]
         )
@@ -2729,12 +3026,19 @@ def api_modify_equipment(item_id: int):
         else:
             next_prereqs_json = row["prerequisites_json"]
 
+        if "usage_instructions" in data and isinstance(data["usage_instructions"], list):
+            next_usage_json = json.dumps(
+                [str(u).strip() for u in data["usage_instructions"] if str(u).strip()]
+            )
+        else:
+            next_usage_json = row["usage_instructions_json"]
+
         conn.execute(
             """
             UPDATE equipment
             SET name = ?, category = ?, description = ?, storage_compartment = ?,
                 condition = ?, safety_level = ?, total_qty = ?, available_qty = ?,
-                prerequisites_json = ?, image_url = ?
+                prerequisites_json = ?, usage_instructions_json = ?, image_url = ?
             WHERE id = ?
             """,
             (
@@ -2747,6 +3051,7 @@ def api_modify_equipment(item_id: int):
                 next_total,
                 next_avail,
                 next_prereqs_json,
+                next_usage_json,
                 next_image_url,
                 item_id,
             ),
@@ -2834,6 +3139,7 @@ if __name__ == "__main__":
     print(f"  -> LAN Base URL:        {base_url}")
     print(f"  -> Student Kiosk UI:    {base_url}/kiosk")
     print(f"  -> Student Register UI: {base_url}/student/register")
+    print(f"  -> Student Account UI:  {base_url}/student/account")
     print(f"  -> Admin Dashboard UI:  {base_url}/admin")
     print(f"  -> SQLite Database:     {get_db_path()}")
     print(f"  -> ID Photos Directory: {get_id_photos_dir()}")

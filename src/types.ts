@@ -28,6 +28,7 @@ export interface Equipment {
   condition: EquipmentCondition;
   safety_level: 'SAFE' | 'CAUTION';
   prerequisites: string[];
+  usage_instructions?: string[];
   is_active: boolean;
   created_at: string;
 }
@@ -43,6 +44,7 @@ export interface BasketItem {
   unit: string;
   safety_level: 'SAFE' | 'CAUTION';
   prerequisites: string[];
+  usage_instructions?: string[];
 }
 
 export interface CheckoutSession {
@@ -61,6 +63,7 @@ export type TransactionStatus = 'Borrowed / In Lab' | 'Returned / Logged Out' | 
 export interface StudentTransactionLog {
   id: number;
   transaction_code: string;
+  student_account_id?: number | null;
   student_name: string;
   student_id_lrn: string;
   grade_section: string;

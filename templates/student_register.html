@@ -369,6 +369,15 @@
           <p class="text-[10px] text-center text-slate-500 leading-snug">
             Previously rejected? Re-submit with your same LRN &amp; email and a clearer School ID photo to request re-verification.
           </p>
+
+          <div class="pt-2 border-t border-slate-100 text-center">
+            <a
+              href="/student/account"
+              class="inline-block text-xs font-heading font-bold text-[#003087] hover:underline"
+            >
+              Already approved? Sign in to My Account →
+            </a>
+          </div>
         </form>
 
         <!-- =============================================================== -->
@@ -444,6 +453,8 @@
       <a href="/kiosk" class="font-medium text-white hover:text-[#F5A623] underline">kiosk.html</a>
       <span class="text-slate-600">·</span>
       <a href="/student/register" class="font-semibold text-[#F5A623] underline">student_register.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/account" class="font-medium text-white hover:text-[#F5A623] underline">student_account.html</a>
       <span class="text-slate-600">·</span>
       <a href="/student/checkout/DEMO-QR" class="font-medium text-white hover:text-[#F5A623] underline">student_form.html</a>
       <span class="text-slate-600">·</span>
@@ -813,13 +824,19 @@
             : '';
 
           if (status === 'approved') {
-            resultBox.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-emerald-50 border-emerald-200 text-emerald-900';
+            resultBox.className = 'rounded-xl p-3 border text-xs space-y-2 bg-emerald-50 border-emerald-200 text-emerald-900';
             resultBox.innerHTML = `
               <div class="flex items-center justify-between gap-2">
                 <span class="px-2 py-0.5 rounded-full bg-[#16A34A] text-white font-mono text-[10px] font-bold uppercase">Approved</span>
                 ${lrnBadge}
               </div>
               <p class="font-semibold leading-snug">Approved! Your account is active and ready for checkout.</p>
+              <a
+                href="/student/account"
+                class="inline-block px-3 py-1.5 bg-[#16A34A] hover:bg-emerald-700 text-white text-[11px] font-heading font-bold rounded-lg"
+              >
+                Sign In to My Account →
+              </a>
             `;
           } else if (status === 'pending') {
             resultBox.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-amber-50 border-amber-200 text-amber-950';

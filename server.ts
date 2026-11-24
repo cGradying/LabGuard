@@ -217,7 +217,41 @@ function enrichEquipmentWithImages(list: Equipment[]): Equipment[] {
   return list.map((item) => ({
     ...item,
     image_url: item.image_url || `/images/equipment/${item.qr_code}.svg`,
+    prerequisites: Array.isArray(item.prerequisites) ? [...item.prerequisites] : [],
+    usage_instructions: Array.isArray(item.usage_instructions)
+      ? [...item.usage_instructions]
+      : [],
   }));
+}
+
+function enrichBasketItemsWithInstructions(items: BasketItem[]): BasketItem[] {
+  const byId = new Map(equipmentList.map((e) => [e.id, e]));
+  const byQr = new Map(equipmentList.map((e) => [e.qr_code.toUpperCase(), e]));
+  return (items || []).map((item) => {
+    const eq =
+      byId.get(Number(item.equipment_id)) ||
+      (item.qr_code ? byQr.get(String(item.qr_code).toUpperCase()) : undefined);
+    const prereqs = Array.isArray(item.prerequisites)
+      ? item.prerequisites.map((s) => String(s).trim()).filter(Boolean)
+      : [];
+    const usage = Array.isArray(item.usage_instructions)
+      ? item.usage_instructions.map((s) => String(s).trim()).filter(Boolean)
+      : [];
+    return {
+      ...item,
+      image_url: item.image_url || eq?.image_url || `/images/equipment/${item.qr_code}.svg`,
+      prerequisites: prereqs.length > 0 ? prereqs : [...(eq?.prerequisites || [])],
+      usage_instructions: usage.length > 0 ? usage : [...(eq?.usage_instructions || [])],
+    };
+  });
+}
+
+function enrichTransactionWithInstructions(tx: StudentTransactionLog): StudentTransactionLog {
+  return {
+    ...tx,
+    student_account_id: tx.student_account_id ?? null,
+    items: enrichBasketItemsWithInstructions(tx.items || []),
+  };
 }
 
 // Server-authoritative database state
@@ -321,7 +355,20 @@ function seedStudentAccounts(): void {
   }
 }
 
+function linkSeededTransactionsToAccounts(): void {
+  const accByLrn = new Map(
+    studentAccounts.map((a) => [a.student_id_lrn.toUpperCase(), a.id])
+  );
+  transactionLogs = transactionLogs.map((tx) => ({
+    ...tx,
+    student_account_id:
+      tx.student_account_id ?? accByLrn.get(tx.student_id_lrn.toUpperCase()) ?? null,
+    items: enrichBasketItemsWithInstructions(tx.items || []),
+  }));
+}
+
 seedStudentAccounts();
+linkSeededTransactionsToAccounts();
 
 function serializeStudent(acc: StudentAccountRecord) {
   return {
@@ -351,6 +398,25 @@ function extractBearerToken(req: express.Request, allowQueryToken = false): stri
     return req.query.token.trim();
   }
   return null;
+}
+
+function getAuthenticatedStudent(
+  req: express.Request
+): { account: StudentAccountRecord; token: string } | null {
+  const token = extractBearerToken(req, false);
+  if (!token) return null;
+  const sess = studentSessions.get(token);
+  if (!sess) return null;
+  if (Date.parse(sess.expires_at) <= Date.now()) {
+    studentSessions.delete(token);
+    return null;
+  }
+  const acc = studentAccounts.find((a) => a.id === sess.student_id);
+  if (!acc) {
+    studentSessions.delete(token);
+    return null;
+  }
+  return { account: acc, token };
 }
 
 function getAuthenticatedAdmin(
@@ -625,6 +691,10 @@ async function startServer() {
     res.sendFile(path.join(templatesDir, 'student_register.html'));
   });
 
+  app.get(['/student/account', '/student_account.html'], (_req, res) => {
+    res.sendFile(path.join(templatesDir, 'student_account.html'));
+  });
+
   app.get(['/admin', '/admin.html'], (_req, res) => {
     res.sendFile(path.join(templatesDir, 'admin.html'));
   });
@@ -880,23 +950,12 @@ async function startServer() {
   });
 
   app.get('/api/students/me', (req, res) => {
-    const token = extractBearerToken(req, false);
-    if (!token) {
+    const auth = getAuthenticatedStudent(req);
+    if (!auth) {
       res.status(401).json({ error: 'Student authentication required.' });
       return;
     }
-    const sess = studentSessions.get(token);
-    if (!sess || Date.parse(sess.expires_at) <= Date.now()) {
-      if (sess) studentSessions.delete(token);
-      res.status(401).json({ error: 'Student authentication required.' });
-      return;
-    }
-    const acc = studentAccounts.find((a) => a.id === sess.student_id);
-    if (!acc) {
-      studentSessions.delete(token);
-      res.status(401).json({ error: 'Student authentication required.' });
-      return;
-    }
+    const { account: acc } = auth;
     if (acc.status !== 'approved') {
       res.status(403).json({
         error: 'Your student account is not approved for active access.',
@@ -905,7 +964,61 @@ async function startServer() {
       });
       return;
     }
-    res.json({ student: serializeStudent(acc) });
+
+    const upperLrn = acc.student_id_lrn.toUpperCase();
+    const matching = transactionLogs
+      .filter(
+        (t) =>
+          (t.student_account_id !== null &&
+            t.student_account_id !== undefined &&
+            t.student_account_id === acc.id) ||
+          t.student_id_lrn.toUpperCase() === upperLrn
+      )
+      .sort((a, b) => Date.parse(b.time_in) - Date.parse(a.time_in) || b.id - a.id)
+      .map(enrichTransactionWithInstructions);
+
+    const active_transactions = matching.filter((t) => t.status !== 'Returned / Logged Out');
+    const past_transactions = matching.filter((t) => t.status === 'Returned / Logged Out');
+
+    res.json({
+      student: serializeStudent(acc),
+      active_transactions,
+      past_transactions,
+    });
+  });
+
+  app.post('/api/students/change-password', (req, res) => {
+    const auth = getAuthenticatedStudent(req);
+    if (!auth) {
+      res.status(401).json({ error: 'Student authentication required.' });
+      return;
+    }
+    const { account: acc } = auth;
+    if (acc.status !== 'approved') {
+      res.status(403).json({
+        error: 'Your student account is not approved for active access.',
+        account_status: acc.status,
+        rejection_reason: acc.rejection_reason || '',
+      });
+      return;
+    }
+
+    const currentPassword = String(req.body?.current_password || '');
+    const newPassword = String(req.body?.new_password || '');
+
+    if (!currentPassword || !verifyPassword(currentPassword, acc.password_hash)) {
+      res.status(400).json({ error: 'Current password is incorrect.' });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      res.status(400).json({ error: 'New password must be at least 6 characters long.' });
+      return;
+    }
+
+    acc.password_hash = hashPassword(newPassword);
+    acc.updated_at = new Date().toISOString();
+    res.json({ success: true });
   });
 
   app.post('/api/students/logout', (req, res) => {
@@ -1191,7 +1304,8 @@ async function startServer() {
           quantity: qty,
           unit: eq.unit,
           safety_level: eq.safety_level,
-          prerequisites: eq.prerequisites,
+          prerequisites: [...(eq.prerequisites || [])],
+          usage_instructions: [...(eq.usage_instructions || [])],
         });
       }
 
@@ -1236,15 +1350,66 @@ async function startServer() {
       return;
     }
     res.json({
-      session,
+      session: {
+        ...session,
+        basket_items: enrichBasketItemsWithInstructions(session.basket_items),
+        completed_transaction: session.completed_transaction
+          ? enrichTransactionWithInstructions(session.completed_transaction)
+          : undefined,
+      },
       safety_status: safetyStatus,
       student_presets: STUDENT_PRESETS,
     });
   });
 
   app.post('/api/kiosk/checkout-session/:token/complete', (req, res) => {
+    const auth = getAuthenticatedStudent(req);
+    if (!auth) {
+      res.status(401).json({ error: 'Student login required to complete checkout.' });
+      return;
+    }
+    const { account: studentAcc } = auth;
+    if (studentAcc.status !== 'approved') {
+      res.status(403).json({
+        error: 'Your student account is not approved for equipment checkout.',
+        account_status: studentAcc.status,
+        rejection_reason: studentAcc.rejection_reason || '',
+      });
+      return;
+    }
+
     const token = req.params.token;
     const session = checkoutSessions.get(token);
+
+    if (session && session.status === 'completed' && session.completed_transaction) {
+      const completedTx = session.completed_transaction;
+      const ownsTx =
+        (completedTx.student_account_id !== null &&
+          completedTx.student_account_id !== undefined &&
+          completedTx.student_account_id === studentAcc.id) ||
+        (completedTx.student_account_id == null &&
+          completedTx.student_id_lrn.toUpperCase() === studentAcc.student_id_lrn.toUpperCase());
+      if (!ownsTx) {
+        res.status(403).json({
+          error: 'This checkout session was already completed by another student.',
+        });
+        return;
+      }
+      res.json({
+        success: true,
+        transaction: completedTx,
+        safety_status: safetyStatus,
+      });
+      return;
+    }
+
+    if (safetyStatus.level === 'UNSAFE') {
+      res.status(403).json({
+        error:
+          'Laboratory LED Safety Status is RED (UNSAFE). Equipment checkout is paused.',
+      });
+      return;
+    }
 
     const basketItems: BasketItem[] = session
       ? session.basket_items
@@ -1252,58 +1417,73 @@ async function startServer() {
       ? req.body.basket_items
       : [];
 
-    if (session && session.status === 'completed' && session.completed_transaction) {
-      res.json({
-        success: true,
-        transaction: session.completed_transaction,
-      });
-      return;
-    }
-
     if (basketItems.length === 0) {
       res.status(400).json({ error: 'No equipment items found in checkout session.' });
       return;
     }
 
-    const studentName = String(req.body?.student_name || '').trim();
-    const studentIdLrn = String(req.body?.student_id_lrn || '').trim();
-    const gradeSection = String(req.body?.grade_section || '').trim();
-    const schoolEmail = String(req.body?.school_email || '').trim().toLowerCase();
+    // Anti-spoofing: strictly populate identity from verified student account
+    const studentName = studentAcc.full_name;
+    const studentIdLrn = studentAcc.student_id_lrn;
+    const gradeSection = studentAcc.grade_section;
+    const schoolEmail = studentAcc.school_email;
+
     const subjectActivity = String(req.body?.subject_activity || '').trim();
     const teacherName = String(req.body?.teacher_name || '').trim();
-    const expectedReturnHours = Number(req.body?.expected_return_hours || 2);
+    const rawHours = Number(req.body?.expected_return_hours);
+    const expectedReturnHours = Number.isFinite(rawHours) && rawHours > 0 ? rawHours : 2;
     const safetyChecked: string[] = Array.isArray(req.body?.safety_prerequisites_checked)
-      ? req.body.safety_prerequisites_checked
+      ? req.body.safety_prerequisites_checked.map((x: unknown) => String(x)).filter(Boolean)
       : [];
 
-    if (!studentName || !studentIdLrn || !gradeSection || !subjectActivity || !teacherName) {
+    if (!subjectActivity || !teacherName) {
       res.status(400).json({
-        error:
-          'Please fill in your Full Name, Student ID / LRN, Grade & Section, Subject / Activity, and Supervising Teacher.',
+        error: 'Please enter the Science Subject / Lab Activity and Supervising Teacher.',
       });
       return;
     }
 
+    // Validate stock (including duplicate equipment_id aggregation) before mutating
+    const requestedTotals = new Map<number, number>();
+    const resolvedItems: Array<{ eq: Equipment; qty: number }> = [];
     for (const item of basketItems) {
-      const eq = equipmentList.find((e) => e.id === Number(item.equipment_id));
-      if (!eq || eq.available_qty < item.quantity) {
+      const eqId = Number(item.equipment_id);
+      const eq = equipmentList.find((e) => e.id === eqId && e.is_active);
+      const qty = Math.max(1, Number(item.quantity || 1));
+      const nextTotalReq = (requestedTotals.get(eqId) || 0) + qty;
+      requestedTotals.set(eqId, nextTotalReq);
+      if (!eq || eq.available_qty < nextTotalReq) {
         res.status(400).json({
-          error: `${item.name} no longer has sufficient stock available.`,
+          error: `${item.name || 'Equipment'} no longer has sufficient stock available.`,
         });
         return;
       }
+      resolvedItems.push({ eq, qty });
     }
 
     let hasCautionItem = false;
     let totalItemsCount = 0;
+    const snapshotItems: BasketItem[] = [];
 
-    for (const item of basketItems) {
-      const eq = equipmentList.find((e) => e.id === Number(item.equipment_id))!;
-      eq.available_qty = Math.max(0, eq.available_qty - item.quantity);
-      totalItemsCount += item.quantity;
+    for (const { eq, qty } of resolvedItems) {
+      eq.available_qty = Math.max(0, eq.available_qty - qty);
+      totalItemsCount += qty;
       if (eq.safety_level === 'CAUTION') {
         hasCautionItem = true;
       }
+      snapshotItems.push({
+        equipment_id: eq.id,
+        qr_code: eq.qr_code,
+        name: eq.name,
+        category: eq.category,
+        image_url: eq.image_url || `/images/equipment/${eq.qr_code}.svg`,
+        storage_compartment: eq.storage_compartment,
+        quantity: qty,
+        unit: eq.unit,
+        safety_level: eq.safety_level,
+        prerequisites: [...(eq.prerequisites || [])],
+        usage_instructions: [...(eq.usage_instructions || [])],
+      });
     }
 
     const nextId = transactionLogs.reduce((max, t) => Math.max(max, t.id), 100) + 1;
@@ -1315,14 +1495,14 @@ async function startServer() {
     const newTransaction: StudentTransactionLog = {
       id: nextId,
       transaction_code: `LG-JRC-${nextId}`,
+      student_account_id: studentAcc.id,
       student_name: studentName,
       student_id_lrn: studentIdLrn,
       grade_section: gradeSection,
-      school_email:
-        schoolEmail || `${studentName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@arellano.edu.ph`,
+      school_email: schoolEmail,
       subject_activity: subjectActivity,
       teacher_name: teacherName,
-      items: basketItems,
+      items: snapshotItems,
       total_items_count: totalItemsCount,
       safety_prerequisites_checked:
         safetyChecked.length > 0
@@ -1462,9 +1642,25 @@ async function startServer() {
     const totalQty = Math.max(1, Number(req.body?.total_qty || 1));
     const unit = String(req.body?.unit || 'unit').trim();
     const safetyLevel = req.body?.safety_level === 'CAUTION' ? 'CAUTION' : 'SAFE';
-    const prerequisites: string[] = Array.isArray(req.body?.prerequisites)
-      ? req.body.prerequisites.filter(Boolean)
-      : ['Wear buttoned laboratory gown and follow AU-JRC safety rules'];
+    const rawPrereqs: string[] = Array.isArray(req.body?.prerequisites)
+      ? req.body.prerequisites.map((p: unknown) => String(p).trim()).filter(Boolean)
+      : [];
+    const prerequisites =
+      rawPrereqs.length > 0
+        ? rawPrereqs
+        : ['Wear buttoned laboratory gown and follow AU-JRC safety rules'];
+
+    const rawUsage: string[] = Array.isArray(req.body?.usage_instructions)
+      ? req.body.usage_instructions.map((u: unknown) => String(u).trim()).filter(Boolean)
+      : [];
+    const usageInstructions =
+      rawUsage.length > 0
+        ? rawUsage
+        : [
+            `Inspect ${name} carefully before starting your laboratory activity.`,
+            'Operate properly under the guidance of your supervising science teacher.',
+            `Clean and return to ${compartment} after use.`,
+          ];
 
     if (!name) {
       res.status(400).json({ error: 'Equipment name is required.' });
@@ -1490,6 +1686,7 @@ async function startServer() {
       condition: 'Good',
       safety_level: safetyLevel,
       prerequisites,
+      usage_instructions: usageInstructions,
       is_active: true,
       created_at: new Date().toISOString(),
     };
@@ -1514,25 +1711,53 @@ async function startServer() {
       return;
     }
 
-    if (req.body?.name !== undefined) eq.name = String(req.body.name).trim();
-    if (req.body?.category !== undefined) eq.category = req.body.category;
-    if (req.body?.description !== undefined) eq.description = String(req.body.description).trim();
-    if (req.body?.storage_compartment !== undefined)
-      eq.storage_compartment = String(req.body.storage_compartment).trim();
-    if (req.body?.condition !== undefined) eq.condition = req.body.condition;
-    if (req.body?.safety_level !== undefined) eq.safety_level = req.body.safety_level;
-    if (req.body?.image_url !== undefined) eq.image_url = String(req.body.image_url).trim();
-    if (req.body?.total_qty !== undefined) {
+    if (req.body?.name !== undefined && req.body.name !== null) {
+      const trimmed = String(req.body.name).trim();
+      if (trimmed) eq.name = trimmed;
+    }
+    if (req.body?.category !== undefined && req.body.category !== null) {
+      const trimmed = String(req.body.category).trim();
+      if (trimmed) eq.category = trimmed as Equipment['category'];
+    }
+    if (req.body?.description !== undefined && req.body.description !== null) {
+      eq.description = String(req.body.description).trim();
+    }
+    if (req.body?.storage_compartment !== undefined && req.body.storage_compartment !== null) {
+      const trimmed = String(req.body.storage_compartment).trim();
+      if (trimmed) eq.storage_compartment = trimmed;
+    }
+    if (
+      req.body?.condition === 'Good' ||
+      req.body?.condition === 'Fair' ||
+      req.body?.condition === 'Damaged'
+    ) {
+      eq.condition = req.body.condition;
+    }
+    if (req.body?.safety_level === 'SAFE' || req.body?.safety_level === 'CAUTION') {
+      eq.safety_level = req.body.safety_level;
+    }
+    if (req.body?.image_url !== undefined && req.body.image_url !== null) {
+      const trimmed = String(req.body.image_url).trim();
+      if (trimmed) eq.image_url = trimmed;
+    }
+    if (req.body?.total_qty !== undefined && req.body.total_qty !== null) {
       const nextTotal = Math.max(0, Number(req.body.total_qty));
       const borrowedCount = Math.max(0, eq.total_qty - eq.available_qty);
       eq.total_qty = nextTotal;
       eq.available_qty = Math.max(0, nextTotal - borrowedCount);
     }
-    if (req.body?.available_qty !== undefined) {
+    if (req.body?.available_qty !== undefined && req.body.available_qty !== null) {
       eq.available_qty = Math.max(0, Math.min(eq.total_qty, Number(req.body.available_qty)));
     }
     if (Array.isArray(req.body?.prerequisites)) {
-      eq.prerequisites = req.body.prerequisites.filter(Boolean);
+      eq.prerequisites = req.body.prerequisites
+        .map((p: unknown) => String(p).trim())
+        .filter(Boolean);
+    }
+    if (Array.isArray(req.body?.usage_instructions)) {
+      eq.usage_instructions = req.body.usage_instructions
+        .map((u: unknown) => String(u).trim())
+        .filter(Boolean);
     }
 
     broadcastGlobalUpdate({
@@ -1597,6 +1822,7 @@ async function startServer() {
     checkoutSessions.clear();
     studentSessions.clear();
     seedStudentAccounts();
+    linkSeededTransactionsToAccounts();
     // Preserve adminSessions so the active administrator stays signed in
 
     broadcastGlobalUpdate({
@@ -1630,6 +1856,7 @@ async function startServer() {
     console.log(`  -> LAN Base URL:        ${baseUrl}`);
     console.log(`  -> Student Kiosk UI:    ${baseUrl}/kiosk`);
     console.log(`  -> Student Register UI: ${baseUrl}/student/register`);
+    console.log(`  -> Student Account UI:  ${baseUrl}/student/account`);
     console.log(`  -> Admin Dashboard UI:  ${baseUrl}/admin`);
   });
 }
