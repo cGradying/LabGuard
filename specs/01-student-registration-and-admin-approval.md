@@ -1,7 +1,7 @@
 # SPEC-01: Student Registration, School ID Photo Upload & Admin Approval
 
 - **Spec ID:** `SPEC-01`
-- **Status:** `READY FOR REVIEW`
+- **Status:** `MERGED`
 - **Target Branch:** `spec/01-student-registration-approval`
 - **Dependencies:** `main` (commit `a56232d`)
 
@@ -110,10 +110,10 @@ Currently, LabGuard+ allows anyone to enter any student name/LRN without verifyi
 
 ## 6. Acceptance Criteria (Must Pass Before Merging to `main`)
 
-- [ ] A new student can register at `/student/register` with personal details, password, and uploaded School ID image; image is persisted to `<data_dir>/id_photos/`.
-- [ ] Attempting to log in while `pending` returns `403` with `account_status: "pending"` and does NOT issue a token.
-- [ ] Unauthenticated requests to `/api/admin/students` and `/api/admin/students/<id>/id-photo` return `401`.
-- [ ] Logged-in Admin sees the pending count badge, can open the zoomable School ID Lightbox, and can **Approve** or **Reject** (with reason).
-- [ ] Rejected student cannot log in (`403` showing rejection reason) and can re-submit registration to return to `pending`.
-- [ ] Approved student logs in successfully (`200`), receives a Bearer token, and `/api/students/me` returns their verified profile.
-- [ ] All templates have zero external CDN requests; `npm run build:css`, `npm run lint`, `py_compile`, and live browser check pass.
+- [x] A new student can register at `/student/register` with personal details, password, and uploaded School ID image; image is persisted to `<data_dir>/id_photos/`.
+- [x] Attempting to log in while `pending` returns `403` with `account_status: "pending"` and does NOT issue a token.
+- [x] Unauthenticated requests to `/api/admin/students` and `/api/admin/students/<id>/id-photo` return `401`.
+- [x] Logged-in Admin sees the pending count badge, can open the zoomable School ID Lightbox, and can **Approve** or **Reject** (with reason).
+- [x] Rejected student cannot log in (`403` showing rejection reason) and can re-submit registration to return to `pending`.
+- [x] Approved student logs in successfully (`200`), receives a Bearer token, and `/api/students/me` returns their verified profile.
+- [x] All templates have zero external CDN requests; `npm run build:css`, `npm run lint`, `py_compile`, and automated acceptance tests pass.

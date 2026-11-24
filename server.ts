@@ -7,6 +7,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import QRCode from 'qrcode';
+import crypto from 'crypto';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
@@ -28,6 +29,178 @@ import type {
 } from './src/types.ts';
 
 const PORT = Number(process.env.PORT || 3000);
+
+const DEFAULT_ADMIN_EMAIL = 'lara.puertollano@arellano.edu.ph';
+const DEFAULT_ADMIN_PASSWORD = 'au-jrc-2026';
+const DEFAULT_ADMIN_NAME = 'Ms. Lara Marie A. Puertollano';
+
+const PBKDF2_ITERATIONS = 120000;
+const MAX_ID_PHOTO_BYTES = 4 * 1024 * 1024;
+const ADMIN_SESSION_MS = 24 * 60 * 60 * 1000;
+const STUDENT_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+const VALID_GRADE_SECTIONS = new Set(['STEM', 'HUMSS', 'ABM', 'FACULTY']);
+const VALID_STUDENT_STATUSES = new Set(['pending', 'approved', 'rejected', 'suspended']);
+const IMAGE_DATA_URL_RE = /^data:image\/(jpeg|jpg|png|webp|svg\+xml);base64,([A-Za-z0-9+/=\s]+)$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const MIME_TO_EXT: Record<string, string> = {
+  jpeg: 'jpg',
+  jpg: 'jpg',
+  png: 'png',
+  webp: 'webp',
+  'svg+xml': 'svg',
+};
+
+const EXT_TO_MIME: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+};
+
+type StudentAccountStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
+
+interface StudentAccountRecord {
+  id: number;
+  student_id_lrn: string;
+  full_name: string;
+  grade_section: string;
+  school_email: string;
+  password_hash: string;
+  id_photo_filename: string;
+  status: StudentAccountStatus;
+  rejection_reason: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface StudentSessionRecord {
+  token: string;
+  student_id: number;
+  created_at: string;
+  expires_at: string;
+}
+
+interface AdminSessionRecord {
+  token: string;
+  email: string;
+  name: string;
+  created_at: string;
+  expires_at: string;
+}
+
+interface StoredIdPhoto {
+  data: Buffer;
+  contentType: string;
+}
+
+function getAdminEmail(): string {
+  return (process.env.LABGUARD_ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL).trim();
+}
+
+function getAdminPassword(): string {
+  return process.env.LABGUARD_ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+}
+
+function getAdminName(): string {
+  return (process.env.LABGUARD_ADMIN_NAME || DEFAULT_ADMIN_NAME).trim();
+}
+
+function constantTimeStringEqual(a: string, b: string): boolean {
+  const digestA = crypto.createHash('sha256').update(a, 'utf8').digest();
+  const digestB = crypto.createHash('sha256').update(b, 'utf8').digest();
+  return crypto.timingSafeEqual(digestA, digestB);
+}
+
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16);
+  const dk = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, 32, 'sha256');
+  return `pbkdf2_sha256$${PBKDF2_ITERATIONS}$${salt.toString('hex')}$${dk.toString('hex')}`;
+}
+
+function verifyPassword(password: string, storedHash: string): boolean {
+  try {
+    const parts = storedHash.split('$');
+    if (parts.length !== 4 || parts[0] !== 'pbkdf2_sha256') return false;
+    const iterations = Number(parts[1]);
+    if (!Number.isInteger(iterations) || iterations < 1) return false;
+    const salt = Buffer.from(parts[2], 'hex');
+    const expected = Buffer.from(parts[3], 'hex');
+    if (salt.length === 0 || expected.length === 0) return false;
+    const dk = crypto.pbkdf2Sync(password, salt, iterations, expected.length, 'sha256');
+    return dk.length === expected.length && crypto.timingSafeEqual(dk, expected);
+  } catch {
+    return false;
+  }
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildSampleSchoolIdSvg(
+  fullName: string,
+  lrn: string,
+  gradeSection: string,
+  schoolEmail: string,
+  status: StudentAccountStatus
+): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const initials =
+    parts.length >= 2
+      ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      : (fullName.slice(0, 2) || 'AU').toUpperCase();
+  const badgeColor = status === 'approved' ? '#16A34A' : '#F5A623';
+  const badgeLabel = status === 'approved' ? 'VERIFIED STUDENT ID' : 'SAMPLE ID · PENDING REVIEW';
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400">
+  <defs>
+    <linearGradient id="auHdr" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#002366"/>
+      <stop offset="100%" stop-color="#003087"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" rx="22" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="4"/>
+  <path d="M22 0 H618 A22 22 0 0 1 640 22 V102 H0 V22 A22 22 0 0 1 22 0 Z" fill="url(#auHdr)"/>
+  <rect x="0" y="102" width="640" height="8" fill="#C8102E"/>
+  <circle cx="58" cy="52" r="30" fill="#FFFFFF" stroke="#F5A623" stroke-width="4"/>
+  <text x="58" y="59" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#003087">AU</text>
+  <text x="104" y="44" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#FFFFFF" letter-spacing="0.5">ARELLANO UNIVERSITY</text>
+  <text x="104" y="68" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#DBEAFE">JOSE RIZAL CAMPUS · SENIOR HIGH SCHOOL DEPARTMENT</text>
+  <text x="104" y="88" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#FDE68A" letter-spacing="1.2">OFFICIAL STUDENT IDENTIFICATION CARD · S.Y. 2025-2026</text>
+
+  <rect x="28" y="132" width="142" height="174" rx="14" fill="#E2E8F0" stroke="#94A3B8" stroke-width="2"/>
+  <circle cx="99" cy="190" r="34" fill="#003087"/>
+  <path d="M52 288 C52 248 146 248 146 288 Z" fill="#003087"/>
+  <text x="99" y="199" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800" fill="#FFFFFF">${escapeXml(initials)}</text>
+  <rect x="28" y="316" width="142" height="28" rx="8" fill="#003087"/>
+  <text x="99" y="335" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="800" fill="#FFFFFF">${escapeXml(gradeSection)}</text>
+
+  <text x="196" y="156" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1">STUDENT FULL NAME</text>
+  <text x="196" y="184" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#0F172A">${escapeXml(fullName)}</text>
+
+  <text x="196" y="218" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1">STUDENT ID / LRN</text>
+  <text x="196" y="244" font-family="ui-monospace, SFMono-Regular, monospace" font-size="20" font-weight="800" fill="#003087">${escapeXml(lrn)}</text>
+
+  <text x="196" y="276" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1">INSTITUTIONAL EMAIL</text>
+  <text x="196" y="298" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#334155">${escapeXml(schoolEmail)}</text>
+
+  <rect x="196" y="316" width="248" height="28" rx="14" fill="${badgeColor}"/>
+  <text x="320" y="335" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" fill="#FFFFFF" letter-spacing="0.8">${escapeXml(badgeLabel)}</text>
+
+  <rect x="0" y="364" width="640" height="36" fill="#0F172A"/>
+  <text x="28" y="387" font-family="ui-monospace, SFMono-Regular, monospace" font-size="12" font-weight="600" fill="#E2E8F0">AU-JRC SCIENCE LABORATORY · LABGUARD+ VERIFIED CREDENTIAL</text>
+</svg>`;
+}
 
 // Ensure static SVG files exist in /public/images/equipment for both Python Flask and Express
 const eqImgDir = path.resolve(process.cwd(), 'public', 'images', 'equipment');
@@ -52,6 +225,202 @@ let equipmentList: Equipment[] = enrichEquipmentWithImages(structuredClone(INITI
 let transactionLogs: StudentTransactionLog[] = structuredClone(INITIAL_TRANSACTIONS);
 let safetyStatus: SafetyStatusState = structuredClone(INITIAL_SAFETY_STATUS);
 const checkoutSessions: Map<string, CheckoutSession> = new Map();
+let studentAccounts: StudentAccountRecord[] = [];
+let nextStudentAccountId = 1;
+const studentSessions: Map<string, StudentSessionRecord> = new Map();
+const adminSessions: Map<string, AdminSessionRecord> = new Map();
+const studentPhotoStore: Map<string, StoredIdPhoto> = new Map();
+
+function seedStudentAccounts(): void {
+  studentAccounts = [];
+  studentPhotoStore.clear();
+  nextStudentAccountId = 1;
+  const now = Date.now();
+  const demoSeeds: Array<{
+    student_id_lrn: string;
+    full_name: string;
+    grade_section: string;
+    school_email: string;
+    password: string;
+    status: StudentAccountStatus;
+  }> = [
+    {
+      student_id_lrn: 'AUJRC-2026-0101',
+      full_name: 'One Enrique Sebastian G. Abalos',
+      grade_section: 'STEM',
+      school_email: 'one.abalos@arellano.edu.ph',
+      password: 'student123',
+      status: 'approved',
+    },
+    {
+      student_id_lrn: 'AUJRC-2026-0102',
+      full_name: 'Christine S. Contreras',
+      grade_section: 'STEM',
+      school_email: 'christine.contreras@arellano.edu.ph',
+      password: 'student123',
+      status: 'approved',
+    },
+    {
+      student_id_lrn: 'AUJRC-2026-0103',
+      full_name: 'Queen Hannah A. Dones',
+      grade_section: 'HUMSS',
+      school_email: 'queenhannah.dones@arellano.edu.ph',
+      password: 'student123',
+      status: 'approved',
+    },
+    {
+      student_id_lrn: 'AUJRC-2026-0105',
+      full_name: 'Ashlyjicks B. Pangilinan',
+      grade_section: 'STEM',
+      school_email: 'ashlyjicks.pangilinan@arellano.edu.ph',
+      password: 'student123',
+      status: 'pending',
+    },
+  ];
+
+  const adminName = getAdminName();
+  for (const seed of demoSeeds) {
+    const id = nextStudentAccountId++;
+    const safeLrn = seed.student_id_lrn.replace(/[^A-Z0-9_-]+/g, '_');
+    const filename = `seed_${safeLrn}.svg`;
+    const svg = buildSampleSchoolIdSvg(
+      seed.full_name,
+      seed.student_id_lrn,
+      seed.grade_section,
+      seed.school_email,
+      seed.status
+    );
+    studentPhotoStore.set(filename, {
+      data: Buffer.from(svg, 'utf-8'),
+      contentType: 'image/svg+xml',
+    });
+
+    const isApproved = seed.status === 'approved';
+    const createdAt = new Date(
+      isApproved ? now - 3 * 24 * 3600 * 1000 : now - 25 * 60 * 1000
+    ).toISOString();
+    const updatedAt = new Date(
+      isApproved ? now - 2 * 24 * 3600 * 1000 : now - 25 * 60 * 1000
+    ).toISOString();
+
+    studentAccounts.push({
+      id,
+      student_id_lrn: seed.student_id_lrn,
+      full_name: seed.full_name,
+      grade_section: seed.grade_section,
+      school_email: seed.school_email,
+      password_hash: hashPassword(seed.password),
+      id_photo_filename: filename,
+      status: seed.status,
+      rejection_reason: '',
+      reviewed_by: isApproved ? adminName : null,
+      reviewed_at: isApproved ? updatedAt : null,
+      created_at: createdAt,
+      updated_at: updatedAt,
+    });
+  }
+}
+
+seedStudentAccounts();
+
+function serializeStudent(acc: StudentAccountRecord) {
+  return {
+    id: acc.id,
+    student_id_lrn: acc.student_id_lrn,
+    full_name: acc.full_name,
+    grade_section: acc.grade_section,
+    school_email: acc.school_email,
+    status: acc.status,
+    rejection_reason: acc.rejection_reason || '',
+    reviewed_by: acc.reviewed_by,
+    reviewed_at: acc.reviewed_at,
+    created_at: acc.created_at,
+    updated_at: acc.updated_at,
+    has_id_photo: Boolean(acc.id_photo_filename && studentPhotoStore.has(acc.id_photo_filename)),
+    id_photo_url: `/api/admin/students/${acc.id}/id-photo`,
+  };
+}
+
+function extractBearerToken(req: express.Request, allowQueryToken = false): string | null {
+  const authHeader = String(req.headers.authorization || '').trim();
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token) return token;
+  }
+  if (allowQueryToken && typeof req.query.token === 'string' && req.query.token.trim()) {
+    return req.query.token.trim();
+  }
+  return null;
+}
+
+function getAuthenticatedAdmin(
+  req: express.Request,
+  allowQueryToken = false
+): AdminSessionRecord | null {
+  const token = extractBearerToken(req, allowQueryToken);
+  if (!token) return null;
+  const session = adminSessions.get(token);
+  if (!session) return null;
+  if (Date.parse(session.expires_at) <= Date.now()) {
+    adminSessions.delete(token);
+    return null;
+  }
+  return session;
+}
+
+function requireAdminAuth(
+  req: express.Request,
+  res: express.Response,
+  allowQueryToken = false
+): AdminSessionRecord | null {
+  const session = getAuthenticatedAdmin(req, allowQueryToken);
+  if (!session) {
+    res.status(401).json({ error: 'Administrator authentication required.' });
+    return null;
+  }
+  return session;
+}
+
+function saveIdPhotoFromDataUrl(
+  studentIdLrn: string,
+  dataUrl: string
+): { filename?: string; error?: string } {
+  const match = IMAGE_DATA_URL_RE.exec(dataUrl.trim());
+  if (!match) {
+    return {
+      error:
+        'Please upload a valid School ID image (JPEG, PNG, WEBP, or SVG data URL required).',
+    };
+  }
+  const mimeSub = match[1].toLowerCase();
+  const ext = MIME_TO_EXT[mimeSub];
+  if (!ext) {
+    return { error: 'Unsupported School ID image format.' };
+  }
+  const b64Clean = match[2].replace(/\s+/g, '');
+  let decoded: Buffer;
+  try {
+    decoded = Buffer.from(b64Clean, 'base64');
+  } catch {
+    return { error: 'Invalid base64 image data for School ID photo.' };
+  }
+  if (!decoded || decoded.length === 0) {
+    return { error: 'Uploaded School ID image is empty.' };
+  }
+  if (decoded.length > MAX_ID_PHOTO_BYTES) {
+    return { error: 'School ID photo exceeds the 4 MB maximum file size.' };
+  }
+  const safeLrn =
+    studentIdLrn
+      .toUpperCase()
+      .replace(/[^A-Z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 40) || 'STUDENT';
+  const filename = `${safeLrn}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
+  const contentType = EXT_TO_MIME[`.${ext}`] || 'application/octet-stream';
+  studentPhotoStore.set(filename, { data: decoded, contentType });
+  return { filename };
+}
 
 // WebSocket channels
 const checkoutSockets: Map<string, Set<WebSocket>> = new Map();
@@ -186,7 +555,7 @@ function getHardwareStatus() {
 
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: '5mb' }));
+  app.use(express.json({ limit: '8mb' }));
 
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ noServer: true });
@@ -240,7 +609,7 @@ async function startServer() {
   });
 
   // ============================================================================
-  // 3 SEPARATE HTML FILES ROUTES (/kiosk, /student/checkout/:token, /admin)
+  // HTML TEMPLATE ROUTES (/kiosk, /student/checkout/:token, /student/register, /admin)
   // ============================================================================
   const templatesDir = path.resolve(process.cwd(), 'templates');
 
@@ -252,12 +621,16 @@ async function startServer() {
     res.sendFile(path.join(templatesDir, 'student_form.html'));
   });
 
+  app.get(['/student/register', '/student_register.html'], (_req, res) => {
+    res.sendFile(path.join(templatesDir, 'student_register.html'));
+  });
+
   app.get(['/admin', '/admin.html'], (_req, res) => {
     res.sendFile(path.join(templatesDir, 'admin.html'));
   });
 
   // ============================================================================
-  // Health, Hardware Status & Unified State / Kiosk / Admin API Endpoints
+  // Health, Hardware Status & Unified State / Kiosk / Student / Admin API Endpoints
   // ============================================================================
   app.get('/api/health', (req, res) => {
     const baseUrl = resolvePublicBaseUrl(req);
@@ -289,6 +662,491 @@ async function startServer() {
       safety_status: safetyStatus,
       student_presets: STUDENT_PRESETS,
     });
+  });
+
+  app.get('/api/kiosk/registration-qr', async (req, res) => {
+    try {
+      const baseUrl = resolvePublicBaseUrl(req);
+      const registerUrl = `${baseUrl}/student/register`;
+      const accountUrl = `${baseUrl}/student/account`;
+      const qrOpts = {
+        width: 300,
+        margin: 1,
+        color: {
+          dark: '#003087',
+          light: '#FFFFFF',
+        },
+      };
+      const [qrDataUrl, accountQrDataUrl] = await Promise.all([
+        QRCode.toDataURL(registerUrl, qrOpts),
+        QRCode.toDataURL(accountUrl, qrOpts),
+      ]);
+      res.json({
+        register_url: registerUrl,
+        account_url: accountUrl,
+        qr_data_url: qrDataUrl,
+        account_qr_data_url: accountQrDataUrl,
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // ============================================================================
+  // SPEC-01: Student Registration, Status Check & Authentication
+  // ============================================================================
+  app.post('/api/students/register', (req, res) => {
+    const fullName = String(req.body?.full_name || '').trim();
+    const studentIdLrn = String(req.body?.student_id_lrn || '').trim().toUpperCase();
+    const gradeSection = String(req.body?.grade_section || '').trim().toUpperCase();
+    const schoolEmail = String(req.body?.school_email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+    const idPhotoDataUrl = String(req.body?.id_photo_data_url || '').trim();
+
+    if (!fullName || !studentIdLrn || !gradeSection || !schoolEmail || !password || !idPhotoDataUrl) {
+      res.status(400).json({
+        error:
+          'Please fill in Full Name, Student ID / LRN, Strand / Faculty, School Email, Password, and upload your School ID photo.',
+      });
+      return;
+    }
+
+    if (!VALID_GRADE_SECTIONS.has(gradeSection)) {
+      res.status(400).json({
+        error: 'Strand / Faculty must be one of STEM, HUMSS, ABM, or FACULTY.',
+      });
+      return;
+    }
+
+    if (!EMAIL_RE.test(schoolEmail)) {
+      res.status(400).json({ error: 'Please enter a valid school email address.' });
+      return;
+    }
+
+    if (password.length < 6) {
+      res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+      return;
+    }
+
+    const matches = studentAccounts.filter(
+      (a) => a.student_id_lrn === studentIdLrn || a.school_email === schoolEmail
+    );
+
+    if (matches.length > 1 || (matches.length === 1 && matches[0].status !== 'rejected')) {
+      res.status(409).json({
+        error: 'A student account with this Student ID / LRN or School Email already exists.',
+      });
+      return;
+    }
+
+    const saved = saveIdPhotoFromDataUrl(studentIdLrn, idPhotoDataUrl);
+    if (!saved.filename) {
+      res.status(400).json({ error: saved.error || 'Invalid School ID image.' });
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const passwordHash = hashPassword(password);
+
+    let record: StudentAccountRecord;
+    if (matches.length === 1 && matches[0].status === 'rejected') {
+      record = matches[0];
+      const oldPhoto = record.id_photo_filename;
+      record.student_id_lrn = studentIdLrn;
+      record.full_name = fullName;
+      record.grade_section = gradeSection;
+      record.school_email = schoolEmail;
+      record.password_hash = passwordHash;
+      record.id_photo_filename = saved.filename;
+      record.status = 'pending';
+      record.rejection_reason = '';
+      record.reviewed_by = null;
+      record.reviewed_at = null;
+      record.updated_at = nowIso;
+      if (oldPhoto && oldPhoto !== saved.filename) {
+        studentPhotoStore.delete(oldPhoto);
+      }
+    } else {
+      record = {
+        id: nextStudentAccountId++,
+        student_id_lrn: studentIdLrn,
+        full_name: fullName,
+        grade_section: gradeSection,
+        school_email: schoolEmail,
+        password_hash: passwordHash,
+        id_photo_filename: saved.filename,
+        status: 'pending',
+        rejection_reason: '',
+        reviewed_by: null,
+        reviewed_at: null,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+      studentAccounts.push(record);
+    }
+
+    broadcastGlobalUpdate({ event: 'accounts_updated' });
+    res.status(201).json({
+      success: true,
+      student: serializeStudent(record),
+    });
+  });
+
+  app.get('/api/students/status', (req, res) => {
+    const identifier = String(req.query.identifier || '').trim();
+    if (!identifier) {
+      res.json({ found: false });
+      return;
+    }
+    const upper = identifier.toUpperCase();
+    const lower = identifier.toLowerCase();
+    const acc = studentAccounts.find(
+      (a) => a.student_id_lrn === upper || a.school_email === lower
+    );
+    if (!acc) {
+      res.json({ found: false });
+      return;
+    }
+    res.json({
+      found: true,
+      status: acc.status,
+      rejection_reason: acc.rejection_reason || '',
+      student_id_lrn: acc.student_id_lrn,
+      updated_at: acc.updated_at,
+    });
+  });
+
+  app.post('/api/students/login', (req, res) => {
+    const identifier = String(
+      req.body?.identifier || req.body?.email || req.body?.student_id_lrn || ''
+    ).trim();
+    const password = String(req.body?.password || '');
+
+    if (!identifier || !password) {
+      res.status(401).json({ error: 'Invalid Student ID / Email or password.' });
+      return;
+    }
+
+    const upper = identifier.toUpperCase();
+    const lower = identifier.toLowerCase();
+    const acc = studentAccounts.find(
+      (a) => a.student_id_lrn === upper || a.school_email === lower
+    );
+
+    if (!acc || !verifyPassword(password, acc.password_hash)) {
+      res.status(401).json({ error: 'Invalid Student ID / Email or password.' });
+      return;
+    }
+
+    if (acc.status === 'pending') {
+      res.status(403).json({
+        error: 'Your registration is pending Laboratory Admin verification of your School ID.',
+        account_status: 'pending',
+      });
+      return;
+    }
+
+    if (acc.status === 'rejected') {
+      res.status(403).json({
+        error: 'Your registration was rejected by the Laboratory Admin.',
+        account_status: 'rejected',
+        rejection_reason: acc.rejection_reason || '',
+      });
+      return;
+    }
+
+    if (acc.status === 'suspended') {
+      res.status(403).json({
+        error: 'Your student account is suspended. Please contact Laboratory Personnel.',
+        account_status: 'suspended',
+      });
+      return;
+    }
+
+    const token = `STU-${crypto.randomBytes(24).toString('base64url')}`;
+    const now = Date.now();
+    studentSessions.set(token, {
+      token,
+      student_id: acc.id,
+      created_at: new Date(now).toISOString(),
+      expires_at: new Date(now + STUDENT_SESSION_MS).toISOString(),
+    });
+
+    res.json({
+      success: true,
+      token,
+      student: serializeStudent(acc),
+    });
+  });
+
+  app.get('/api/students/me', (req, res) => {
+    const token = extractBearerToken(req, false);
+    if (!token) {
+      res.status(401).json({ error: 'Student authentication required.' });
+      return;
+    }
+    const sess = studentSessions.get(token);
+    if (!sess || Date.parse(sess.expires_at) <= Date.now()) {
+      if (sess) studentSessions.delete(token);
+      res.status(401).json({ error: 'Student authentication required.' });
+      return;
+    }
+    const acc = studentAccounts.find((a) => a.id === sess.student_id);
+    if (!acc) {
+      studentSessions.delete(token);
+      res.status(401).json({ error: 'Student authentication required.' });
+      return;
+    }
+    if (acc.status !== 'approved') {
+      res.status(403).json({
+        error: 'Your student account is not approved for active access.',
+        account_status: acc.status,
+        rejection_reason: acc.rejection_reason || '',
+      });
+      return;
+    }
+    res.json({ student: serializeStudent(acc) });
+  });
+
+  app.post('/api/students/logout', (req, res) => {
+    const token = extractBearerToken(req, false);
+    if (!token) {
+      res.status(401).json({ error: 'Student authentication required.' });
+      return;
+    }
+    const sess = studentSessions.get(token);
+    if (!sess || Date.parse(sess.expires_at) <= Date.now()) {
+      if (sess) studentSessions.delete(token);
+      res.status(401).json({ error: 'Student authentication required.' });
+      return;
+    }
+    studentSessions.delete(token);
+    res.json({ success: true });
+  });
+
+  // ============================================================================
+  // SPEC-01: Admin Authentication & Student Account Approval
+  // ============================================================================
+  app.post('/api/admin/login', (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+    const configuredEmail = getAdminEmail();
+    const configuredPassword = getAdminPassword();
+    const configuredName = getAdminName();
+
+    const emailOk = constantTimeStringEqual(email, configuredEmail.toLowerCase());
+    const passwordOk = constantTimeStringEqual(password, configuredPassword);
+
+    if (!emailOk || !passwordOk) {
+      res.status(401).json({ error: 'Invalid administrator email or password.' });
+      return;
+    }
+
+    const token = `ADM-${crypto.randomBytes(24).toString('base64url')}`;
+    const now = Date.now();
+    adminSessions.set(token, {
+      token,
+      email: configuredEmail,
+      name: configuredName,
+      created_at: new Date(now).toISOString(),
+      expires_at: new Date(now + ADMIN_SESSION_MS).toISOString(),
+    });
+
+    res.json({
+      success: true,
+      token,
+      admin: {
+        email: configuredEmail,
+        name: configuredName,
+      },
+    });
+  });
+
+  app.get('/api/admin/me', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+    res.json({
+      admin: {
+        email: admin.email,
+        name: admin.name,
+      },
+    });
+  });
+
+  app.post('/api/admin/logout', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+    adminSessions.delete(admin.token);
+    res.json({ success: true });
+  });
+
+  app.get('/api/admin/students', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    const statusFilter = String(req.query.status || 'all').trim().toLowerCase();
+    const counts = {
+      total: studentAccounts.length,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      suspended: 0,
+    };
+    for (const acc of studentAccounts) {
+      counts[acc.status] += 1;
+    }
+
+    const filtered =
+      statusFilter && statusFilter !== 'all' && VALID_STUDENT_STATUSES.has(statusFilter)
+        ? studentAccounts.filter((a) => a.status === statusFilter)
+        : studentAccounts;
+
+    const statusRank: Record<StudentAccountStatus, number> = {
+      pending: 0,
+      approved: 1,
+      suspended: 2,
+      rejected: 3,
+    };
+
+    const sorted = [...filtered].sort((a, b) => {
+      const rankDiff = statusRank[a.status] - statusRank[b.status];
+      if (rankDiff !== 0) return rankDiff;
+      return b.id - a.id;
+    });
+
+    res.json({
+      students: sorted.map(serializeStudent),
+      counts,
+    });
+  });
+
+  app.get('/api/admin/students/:id/id-photo', (req, res) => {
+    const admin = requireAdminAuth(req, res, true);
+    if (!admin) return;
+
+    const id = Number(req.params.id);
+    const acc = studentAccounts.find((a) => a.id === id);
+    if (!acc) {
+      res.status(404).json({ error: 'Student account not found.' });
+      return;
+    }
+    const photo = acc.id_photo_filename ? studentPhotoStore.get(acc.id_photo_filename) : undefined;
+    if (!photo) {
+      res.status(404).json({ error: 'School ID photo not found.' });
+      return;
+    }
+    res.setHeader('Content-Type', photo.contentType);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (photo.contentType === 'image/svg+xml') {
+      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+    }
+    res.send(photo.data);
+  });
+
+  app.post('/api/admin/students/:id/approve', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    const id = Number(req.params.id);
+    const acc = studentAccounts.find((a) => a.id === id);
+    if (!acc) {
+      res.status(404).json({ error: 'Student account not found.' });
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    acc.status = 'approved';
+    acc.rejection_reason = '';
+    acc.reviewed_by = admin.name || admin.email;
+    acc.reviewed_at = nowIso;
+    acc.updated_at = nowIso;
+
+    broadcastGlobalUpdate({ event: 'accounts_updated' });
+    res.json({ success: true, student: serializeStudent(acc) });
+  });
+
+  app.post('/api/admin/students/:id/reject', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    const id = Number(req.params.id);
+    const acc = studentAccounts.find((a) => a.id === id);
+    if (!acc) {
+      res.status(404).json({ error: 'Student account not found.' });
+      return;
+    }
+
+    const reason =
+      String(req.body?.reason || '').trim() ||
+      'School ID photo could not be verified. Please re-submit with a clearer photo.';
+    const nowIso = new Date().toISOString();
+    acc.status = 'rejected';
+    acc.rejection_reason = reason;
+    acc.reviewed_by = admin.name || admin.email;
+    acc.reviewed_at = nowIso;
+    acc.updated_at = nowIso;
+
+    for (const [tok, sess] of studentSessions.entries()) {
+      if (sess.student_id === acc.id) {
+        studentSessions.delete(tok);
+      }
+    }
+
+    broadcastGlobalUpdate({ event: 'accounts_updated' });
+    res.json({ success: true, student: serializeStudent(acc) });
+  });
+
+  app.post('/api/admin/students/:id/suspend', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    const id = Number(req.params.id);
+    const acc = studentAccounts.find((a) => a.id === id);
+    if (!acc) {
+      res.status(404).json({ error: 'Student account not found.' });
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    acc.status = 'suspended';
+    acc.reviewed_by = admin.name || admin.email;
+    acc.reviewed_at = nowIso;
+    acc.updated_at = nowIso;
+
+    for (const [tok, sess] of studentSessions.entries()) {
+      if (sess.student_id === acc.id) {
+        studentSessions.delete(tok);
+      }
+    }
+
+    broadcastGlobalUpdate({ event: 'accounts_updated' });
+    res.json({ success: true, student: serializeStudent(acc) });
+  });
+
+  app.delete('/api/admin/students/:id', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    const id = Number(req.params.id);
+    const idx = studentAccounts.findIndex((a) => a.id === id);
+    if (idx === -1) {
+      res.status(404).json({ error: 'Student account not found.' });
+      return;
+    }
+
+    const [removed] = studentAccounts.splice(idx, 1);
+    for (const [tok, sess] of studentSessions.entries()) {
+      if (sess.student_id === removed.id) {
+        studentSessions.delete(tok);
+      }
+    }
+    if (removed.id_photo_filename) {
+      studentPhotoStore.delete(removed.id_photo_filename);
+    }
+
+    broadcastGlobalUpdate({ event: 'accounts_updated' });
+    res.json({ success: true });
   });
 
   app.post('/api/kiosk/checkout-session', async (req, res) => {
@@ -594,6 +1452,9 @@ async function startServer() {
   });
 
   app.post('/api/admin/equipment', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
     const name = String(req.body?.name || '').trim();
     const category = req.body?.category || 'Glassware & Measuring';
     const description = String(req.body?.description || '').trim();
@@ -643,6 +1504,9 @@ async function startServer() {
   });
 
   app.patch('/api/admin/equipment/:id', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
     const id = Number(req.params.id);
     const eq = equipmentList.find((e) => e.id === id);
     if (!eq) {
@@ -680,6 +1544,9 @@ async function startServer() {
   });
 
   app.delete('/api/admin/equipment/:id', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
     const id = Number(req.params.id);
     equipmentList = equipmentList.filter((e) => e.id !== id);
     broadcastGlobalUpdate({
@@ -691,12 +1558,17 @@ async function startServer() {
   });
 
   app.post('/api/admin/safety-status', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
     const level: SafetyStatusLevel =
       req.body?.level === 'CAUTION' || req.body?.level === 'UNSAFE' ? req.body.level : 'SAFE';
     const preset = SAFETY_PRESET_MESSAGES[level];
     const customMessage = String(req.body?.message || '').trim();
     const updatedBy =
-      String(req.body?.updated_by || '').trim() || 'AU-JRC Science Laboratory Personnel';
+      String(req.body?.updated_by || '').trim() ||
+      admin.name ||
+      'AU-JRC Science Laboratory Personnel';
 
     safetyStatus = {
       level,
@@ -715,16 +1587,24 @@ async function startServer() {
     res.json({ safety_status: safetyStatus });
   });
 
-  app.post('/api/reset', (_req, res) => {
+  app.post('/api/reset', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
     equipmentList = enrichEquipmentWithImages(structuredClone(INITIAL_EQUIPMENT));
     transactionLogs = structuredClone(INITIAL_TRANSACTIONS);
     safetyStatus = structuredClone(INITIAL_SAFETY_STATUS);
     checkoutSessions.clear();
+    studentSessions.clear();
+    seedStudentAccounts();
+    // Preserve adminSessions so the active administrator stays signed in
+
     broadcastGlobalUpdate({
       event: 'data_updated',
       safety_status: safetyStatus,
       hardware: getHardwareStatus(),
     });
+    broadcastGlobalUpdate({ event: 'accounts_updated' });
     res.json({ success: true });
   });
 
@@ -749,6 +1629,7 @@ async function startServer() {
     console.log(`LabGuard+ Kiosk Server running on http://0.0.0.0:${PORT}`);
     console.log(`  -> LAN Base URL:        ${baseUrl}`);
     console.log(`  -> Student Kiosk UI:    ${baseUrl}/kiosk`);
+    console.log(`  -> Student Register UI: ${baseUrl}/student/register`);
     console.log(`  -> Admin Dashboard UI:  ${baseUrl}/admin`);
   });
 }

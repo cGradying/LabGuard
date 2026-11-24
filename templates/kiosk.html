@@ -162,43 +162,51 @@
 
       /* Welcome Screen inside 800x480 LCD */
       .rpi-lcd-active #welcome-screen {
-        padding: 0.8rem 1rem !important;
+        padding: 0.55rem 1rem !important;
         justify-content: center !important;
-        gap: 0.75rem !important;
+        gap: 0.55rem !important;
       }
       .rpi-lcd-active #welcome-header-block h1 {
-        font-size: 1.55rem !important;
+        font-size: 1.45rem !important;
         line-height: 1.15 !important;
       }
       .rpi-lcd-active #welcome-header-block p {
-        font-size: 0.72rem !important;
+        font-size: 0.7rem !important;
       }
       .rpi-lcd-active #welcome-cards-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 0.85rem !important;
+        gap: 0.75rem !important;
         margin: 0 !important;
       }
       .rpi-lcd-active .welcome-touch-card {
-        min-height: 235px !important;
-        padding: 0.9rem !important;
-        border-radius: 1.15rem !important;
+        min-height: 205px !important;
+        padding: 0.75rem !important;
+        border-radius: 1.1rem !important;
       }
       .rpi-lcd-active .welcome-touch-icon {
-        width: 3.6rem !important;
-        height: 3.6rem !important;
-        padding: 0.45rem !important;
+        width: 3.1rem !important;
+        height: 3.1rem !important;
+        padding: 0.35rem !important;
       }
       .rpi-lcd-active .welcome-touch-card h2 {
-        font-size: 1.15rem !important;
+        font-size: 1.1rem !important;
       }
       .rpi-lcd-active .welcome-touch-card p {
-        font-size: 0.68rem !important;
-        line-height: 1.25 !important;
+        font-size: 0.66rem !important;
+        line-height: 1.22 !important;
       }
       .rpi-lcd-active .welcome-touch-cta {
-        padding: 0.55rem 0.7rem !important;
-        font-size: 0.72rem !important;
+        padding: 0.5rem 0.7rem !important;
+        font-size: 0.7rem !important;
         border-radius: 0.65rem !important;
+      }
+      .rpi-lcd-active #welcome-register-btn {
+        padding: 0.45rem 1rem !important;
+        font-size: 0.72rem !important;
+      }
+      .rpi-lcd-active #register-qr-img {
+        width: 7.5rem !important;
+        height: 7.5rem !important;
       }
 
       /* Main Catalog Screen inside 800x480 LCD */
@@ -472,6 +480,19 @@
                   <span>Tap to Return (<span id="welcome-return-count">0</span>)</span>
                   <span>→</span>
                 </div>
+              </button>
+            </div>
+
+            <!-- Compact New Student Registration Trigger -->
+            <div class="flex justify-center">
+              <button
+                id="welcome-register-btn"
+                type="button"
+                onclick="openRegisterQrModal()"
+                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white hover:bg-blue-50 active:scale-[0.98] border-2 border-slate-200 hover:border-[#003087] text-[#003087] font-heading font-extrabold text-xs sm:text-sm shadow-xs transition-all cursor-pointer"
+              >
+                <span class="w-2 h-2 rounded-full bg-[#F5A623] shrink-0"></span>
+                <span>New Student? Register Account &amp; Upload School ID →</span>
               </button>
             </div>
           </section>
@@ -904,6 +925,82 @@
           </div>
 
           <!-- ========================================================= -->
+          <!-- MODAL 3: STUDENT REGISTRATION QR CODE                     -->
+          <!-- ========================================================= -->
+          <div id="register-qr-modal" class="hidden absolute inset-0 z-50 bg-slate-900/75 flex items-center justify-center p-3">
+            <div class="animate-modal-pop bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-4 space-y-2.5 shadow-2xl max-h-full overflow-y-auto rpi-scroll">
+              <div class="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                <div class="min-w-0">
+                  <h2 class="text-base sm:text-lg font-extrabold text-slate-900 font-heading leading-tight">
+                    Register Student Account
+                  </h2>
+                  <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    Scan with your smartphone to submit your personal info &amp; School ID photo for Admin approval
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onclick="closeRegisterQrModal()"
+                  class="px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer shrink-0"
+                >
+                  Close
+                </button>
+              </div>
+
+              <!-- Side-by-Side Registration QR & 3-Step Guide -->
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div class="sm:col-span-5 flex flex-col items-center text-center space-y-1">
+                  <div class="p-2 bg-white border-2 border-[#003087] rounded-2xl">
+                    <img
+                      id="register-qr-img"
+                      src=""
+                      alt="Student Registration QR Code"
+                      referrerpolicy="no-referrer"
+                      class="w-32 h-32 object-contain"
+                    />
+                  </div>
+                  <p id="register-qr-status" class="text-[10px] text-slate-500 font-medium">
+                    Scan with your phone camera
+                  </p>
+                </div>
+
+                <div class="sm:col-span-7 bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-2">
+                  <p class="text-[10px] font-mono font-bold uppercase tracking-wider text-[#003087]">
+                    Registration Steps
+                  </p>
+                  <div class="flex flex-wrap items-center gap-1 text-[10px] font-heading font-bold">
+                    <span class="px-2 py-0.5 rounded-full bg-[#003087] text-white">1. Scan QR</span>
+                    <span class="text-slate-400">→</span>
+                    <span class="px-2 py-0.5 rounded-full bg-[#F5A623] text-slate-950">2. Upload School ID</span>
+                    <span class="text-slate-400">→</span>
+                    <span class="px-2 py-0.5 rounded-full bg-[#16A34A] text-white">3. Wait for Admin Approval</span>
+                  </div>
+                  <p class="text-[11px] text-slate-600 leading-snug">
+                    Have your official AU-JRC School ID ready. Laboratory Personnel will verify your photo and activate your account.
+                  </p>
+                </div>
+              </div>
+
+              <p
+                id="register-qr-url"
+                class="text-[10px] font-mono text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-center truncate"
+              >
+                Generating registration QR...
+              </p>
+
+              <div id="register-qr-desktop-wrap" class="pt-1 border-t border-slate-100">
+                <a
+                  id="register-qr-desktop-link"
+                  href="/student/register"
+                  class="block w-full py-2 px-3 bg-[#003087] hover:bg-[#002466] text-white text-xs font-heading font-bold rounded-xl text-center transition-colors"
+                >
+                  Open Registration Page →
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- ========================================================= -->
           <!-- CELEBRATORY CHECKOUT CONFIRMED BANNER / TOAST             -->
           <!-- ========================================================= -->
           <div
@@ -942,6 +1039,8 @@
     <div id="proto-route-helper" class="fixed bottom-3 right-3 z-50 bg-slate-900/95 text-white border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg flex items-center gap-2.5">
       <span class="font-mono text-[11px] text-slate-400">Preview Routes:</span>
       <a href="/kiosk" class="font-semibold text-[#F5A623] underline">kiosk.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/register" class="font-medium text-white hover:text-[#F5A623] underline">student_register.html</a>
       <span class="text-slate-600">·</span>
       <a href="/student/checkout/DEMO-QR" class="font-medium text-white hover:text-[#F5A623] underline">student_form.html</a>
       <span class="text-slate-600">·</span>
@@ -1068,6 +1167,7 @@
         document.getElementById('top-mode-bar').classList.add('hidden');
         closeQrModal();
         closeReturnModal();
+        closeRegisterQrModal();
         toggleBasketPopup('collapse');
         toggleTouchKeyboard(false);
         clearKeyboardInput();
@@ -1087,6 +1187,7 @@
         document.getElementById('top-mode-bar').classList.add('hidden');
         closeQrModal();
         closeReturnModal();
+        closeRegisterQrModal();
         toggleTouchKeyboard(false);
         resetIdleTimer();
       }
@@ -1102,6 +1203,7 @@
 
         document.getElementById('kiosk-top-bar').classList.remove('hidden');
         document.getElementById('top-mode-bar').classList.remove('hidden');
+        closeRegisterQrModal();
         switchKioskMode(mode);
         resetIdleTimer();
       }
@@ -1144,15 +1246,18 @@
         const isKioskMode = detectKioskMode();
         const toolbar = document.getElementById('simulator-toolbar');
         const routeHelper = document.getElementById('proto-route-helper');
+        const regDesktopWrap = document.getElementById('register-qr-desktop-wrap');
         const body = document.getElementById('page-body');
         const viewport = document.getElementById('kiosk-lcd-viewport');
 
         if (isKioskMode) {
           if (toolbar) toolbar.classList.add('hidden');
           if (routeHelper) routeHelper.classList.add('hidden');
+          if (regDesktopWrap) regDesktopWrap.classList.add('hidden');
         } else {
           if (toolbar) toolbar.classList.remove('hidden');
           if (routeHelper) routeHelper.classList.remove('hidden');
+          if (regDesktopWrap) regDesktopWrap.classList.remove('hidden');
         }
 
         if (simulatorEnabled) return;
@@ -1775,6 +1880,43 @@
       function closeQrModal() {
         cleanupCheckoutSessionWatchers();
         document.getElementById('qr-checkout-modal').classList.add('hidden');
+      }
+
+      async function openRegisterQrModal() {
+        resetIdleTimer();
+        const modal = document.getElementById('register-qr-modal');
+        const imgEl = document.getElementById('register-qr-img');
+        const urlEl = document.getElementById('register-qr-url');
+        const statusEl = document.getElementById('register-qr-status');
+        const desktopWrap = document.getElementById('register-qr-desktop-wrap');
+
+        if (desktopWrap) {
+          desktopWrap.classList.toggle('hidden', detectKioskMode());
+        }
+        if (statusEl) statusEl.textContent = 'Loading registration QR...';
+        if (urlEl) urlEl.textContent = 'Fetching LAN registration URL...';
+        if (modal) modal.classList.remove('hidden');
+
+        try {
+          const res = await fetch('/api/kiosk/registration-qr');
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.qr_data_url) {
+            if (statusEl) statusEl.textContent = 'Could not load QR code';
+            if (urlEl) urlEl.textContent = `${window.location.origin}/student/register`;
+            return;
+          }
+          if (imgEl) imgEl.src = data.qr_data_url;
+          if (statusEl) statusEl.textContent = 'Scan with your phone camera';
+          if (urlEl) urlEl.textContent = data.register_url || `${window.location.origin}/student/register`;
+        } catch {
+          if (statusEl) statusEl.textContent = 'Network error loading QR';
+          if (urlEl) urlEl.textContent = `${window.location.origin}/student/register`;
+        }
+      }
+
+      function closeRegisterQrModal() {
+        const modal = document.getElementById('register-qr-modal');
+        if (modal) modal.classList.add('hidden');
       }
 
       let activeRevealedTxId = null;

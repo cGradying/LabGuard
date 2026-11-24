@@ -14,20 +14,26 @@ serving 3 separate HTML files:
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
+import html as html_lib
 import io
 import json
 import logging
 import os
 import random
+import re
+import secrets
 import socket
 import sqlite3
 import string
 import threading
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, Set
+from functools import wraps
+from typing import Any, Dict, Optional, Set, Tuple
 from urllib.parse import urlsplit
 
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, Response, g, jsonify, render_template, request, send_from_directory
 
 from hardware.led_controller import SafetyLEDController
 
@@ -51,7 +57,39 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_DB_PATH = os.path.join(BASE_DIR, "labguard.db")
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 
+DEFAULT_ADMIN_EMAIL = "lara.puertollano@arellano.edu.ph"
+DEFAULT_ADMIN_PASSWORD = "au-jrc-2026"
+DEFAULT_ADMIN_NAME = "Ms. Lara Marie A. Puertollano"
+
+PBKDF2_ITERATIONS = 120000
+MAX_ID_PHOTO_BYTES = 4 * 1024 * 1024  # 4 MB
+ADMIN_SESSION_HOURS = 24
+STUDENT_SESSION_DAYS = 7
+VALID_GRADE_SECTIONS = ("STEM", "HUMSS", "ABM", "FACULTY")
+VALID_STUDENT_STATUSES = ("pending", "approved", "rejected", "suspended")
+
+IMAGE_DATA_URL_RE = re.compile(
+    r"^data:image/(jpeg|jpg|png|webp|svg\+xml);base64,([A-Za-z0-9+/=\s]+)$",
+    re.IGNORECASE,
+)
+EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+MIME_TO_EXT = {
+    "jpeg": "jpg",
+    "jpg": "jpg",
+    "png": "png",
+    "webp": "webp",
+    "svg+xml": "svg",
+}
+EXT_TO_MIME = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+}
+
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"))
+app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 8 MB max JSON payload for 4 MB base64 images
 sock = Sock(app) if Sock is not None else None
 
 # Hardware GPIO / Simulation LED & Buzzer controller
@@ -365,6 +403,196 @@ def get_server_port() -> int:
 def get_db_path() -> str:
     env_path = (os.environ.get("LABGUARD_DB_PATH") or "").strip()
     return env_path if env_path else DEFAULT_DB_PATH
+
+
+def get_data_dir() -> str:
+    env_dir = (os.environ.get("LABGUARD_DATA_DIR") or "").strip()
+    if env_dir:
+        return os.path.abspath(env_dir)
+    db_dir = os.path.dirname(os.path.abspath(get_db_path()))
+    return db_dir or BASE_DIR
+
+
+def get_id_photos_dir() -> str:
+    photos_dir = os.path.join(get_data_dir(), "id_photos")
+    os.makedirs(photos_dir, exist_ok=True)
+    return photos_dir
+
+
+def get_admin_email() -> str:
+    return (os.environ.get("LABGUARD_ADMIN_EMAIL") or DEFAULT_ADMIN_EMAIL).strip()
+
+
+def get_admin_password() -> str:
+    return os.environ.get("LABGUARD_ADMIN_PASSWORD") or DEFAULT_ADMIN_PASSWORD
+
+
+def get_admin_name() -> str:
+    return (os.environ.get("LABGUARD_ADMIN_NAME") or DEFAULT_ADMIN_NAME).strip()
+
+
+def _parse_iso_utc(iso_str: Optional[str]) -> Optional[datetime]:
+    if not iso_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def hash_password(password: str) -> str:
+    """Hash password using PBKDF2-HMAC-SHA256 with a 16-byte random salt."""
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PBKDF2_ITERATIONS)
+    return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${salt.hex()}${dk.hex()}"
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Constant-time verification of a PBKDF2-HMAC-SHA256 password hash."""
+    try:
+        algo, iter_str, salt_hex, expected_hex = stored_hash.split("$", 3)
+        if algo != "pbkdf2_sha256":
+            return False
+        iterations = int(iter_str)
+        if iterations < 1:
+            return False
+        salt = bytes.fromhex(salt_hex)
+        expected = bytes.fromhex(expected_hex)
+        if not salt or not expected:
+            return False
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+        return hmac.compare_digest(dk, expected)
+    except Exception:
+        return False
+
+
+def _build_sample_school_id_svg(
+    full_name: str,
+    student_id_lrn: str,
+    grade_section: str,
+    school_email: str,
+    status: str,
+) -> str:
+    parts = [p for p in full_name.strip().split() if p]
+    if len(parts) >= 2:
+        initials = (parts[0][0] + parts[-1][0]).upper()
+    else:
+        initials = (full_name[:2] or "AU").upper()
+
+    badge_color = "#16A34A" if status == "approved" else "#F5A623"
+    badge_label = "VERIFIED STUDENT ID" if status == "approved" else "SAMPLE ID · PENDING REVIEW"
+
+    esc_name = html_lib.escape(full_name)
+    esc_lrn = html_lib.escape(student_id_lrn)
+    esc_strand = html_lib.escape(grade_section)
+    esc_email = html_lib.escape(school_email)
+    esc_initials = html_lib.escape(initials)
+    esc_badge = html_lib.escape(badge_label)
+
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400">\n'
+        "  <defs>\n"
+        '    <linearGradient id="auHdr" x1="0" y1="0" x2="1" y2="1">\n'
+        '      <stop offset="0%" stop-color="#002366"/>\n'
+        '      <stop offset="100%" stop-color="#003087"/>\n'
+        "    </linearGradient>\n"
+        "  </defs>\n"
+        '  <rect width="640" height="400" rx="22" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="4"/>\n'
+        '  <path d="M22 0 H618 A22 22 0 0 1 640 22 V102 H0 V22 A22 22 0 0 1 22 0 Z" fill="url(#auHdr)"/>\n'
+        '  <rect x="0" y="102" width="640" height="8" fill="#C8102E"/>\n'
+        '  <circle cx="58" cy="52" r="30" fill="#FFFFFF" stroke="#F5A623" stroke-width="4"/>\n'
+        '  <text x="58" y="59" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#003087">AU</text>\n'
+        '  <text x="104" y="44" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#FFFFFF" letter-spacing="0.5">ARELLANO UNIVERSITY</text>\n'
+        '  <text x="104" y="68" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#DBEAFE">JOSE RIZAL CAMPUS · SENIOR HIGH SCHOOL DEPARTMENT</text>\n'
+        '  <text x="104" y="88" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#FDE68A" letter-spacing="1.2">OFFICIAL STUDENT IDENTIFICATION CARD · S.Y. 2025-2026</text>\n'
+        '  <rect x="28" y="132" width="142" height="174" rx="14" fill="#E2E8F0" stroke="#94A3B8" stroke-width="2"/>\n'
+        '  <circle cx="99" cy="190" r="34" fill="#003087"/>\n'
+        '  <path d="M52 288 C52 248 146 248 146 288 Z" fill="#003087"/>\n'
+        f'  <text x="99" y="199" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800" fill="#FFFFFF">{esc_initials}</text>\n'
+        '  <rect x="28" y="316" width="142" height="28" rx="8" fill="#003087"/>\n'
+        f'  <text x="99" y="335" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="800" fill="#FFFFFF">{esc_strand}</text>\n'
+        '  <text x="196" y="156" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1">STUDENT FULL NAME</text>\n'
+        f'  <text x="196" y="184" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#0F172A">{esc_name}</text>\n'
+        '  <text x="196" y="218" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1">STUDENT ID / LRN</text>\n'
+        f'  <text x="196" y="244" font-family="ui-monospace, SFMono-Regular, monospace" font-size="20" font-weight="800" fill="#003087">{esc_lrn}</text>\n'
+        '  <text x="196" y="276" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1">INSTITUTIONAL EMAIL</text>\n'
+        f'  <text x="196" y="298" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#334155">{esc_email}</text>\n'
+        f'  <rect x="196" y="316" width="248" height="28" rx="14" fill="{badge_color}"/>\n'
+        f'  <text x="320" y="335" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" fill="#FFFFFF" letter-spacing="0.8">{esc_badge}</text>\n'
+        '  <rect x="0" y="364" width="640" height="36" fill="#0F172A"/>\n'
+        '  <text x="28" y="387" font-family="ui-monospace, SFMono-Regular, monospace" font-size="12" font-weight="600" fill="#E2E8F0">AU-JRC SCIENCE LABORATORY · LABGUARD+ VERIFIED CREDENTIAL</text>\n'
+        "</svg>\n"
+    )
+
+
+def _resolve_safe_photo_path(filename: str) -> Optional[str]:
+    """Resolve an ID photo filename strictly inside get_id_photos_dir() (no traversal)."""
+    if not filename or "/" in filename or "\\" in filename or ".." in filename:
+        return None
+    if os.path.basename(filename) != filename:
+        return None
+    photos_dir = os.path.realpath(get_id_photos_dir())
+    target = os.path.realpath(os.path.join(photos_dir, filename))
+    if not target.startswith(photos_dir + os.sep):
+        return None
+    return target
+
+
+def _photo_file_exists(filename: str) -> bool:
+    path = _resolve_safe_photo_path(filename)
+    return bool(path and os.path.isfile(path))
+
+
+def _delete_photo_file_safe(filename: Optional[str]) -> None:
+    if not filename:
+        return
+    path = _resolve_safe_photo_path(filename)
+    if path and os.path.isfile(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def _save_id_photo_from_data_url(
+    student_id_lrn: str, data_url: str
+) -> Tuple[Optional[str], Optional[str]]:
+    """Validate and save a base64 image data URL into id_photos/ with a sanitized filename."""
+    match = IMAGE_DATA_URL_RE.match((data_url or "").strip())
+    if not match:
+        return (
+            None,
+            "Please upload a valid School ID image (JPEG, PNG, WEBP, or SVG data URL required).",
+        )
+    mime_sub = match.group(1).lower()
+    ext = MIME_TO_EXT.get(mime_sub)
+    if not ext:
+        return None, "Unsupported School ID image format."
+
+    b64_clean = re.sub(r"\s+", "", match.group(2))
+    try:
+        raw_bytes = base64.b64decode(b64_clean, validate=True)
+    except Exception:
+        return None, "Invalid base64 image data for School ID photo."
+
+    if not raw_bytes:
+        return None, "Uploaded School ID image is empty."
+    if len(raw_bytes) > MAX_ID_PHOTO_BYTES:
+        return None, "School ID photo exceeds the 4 MB maximum file size."
+
+    safe_lrn = re.sub(r"[^A-Z0-9_-]+", "_", student_id_lrn.upper()).strip("_")[:40] or "STUDENT"
+    filename = f"{safe_lrn}_{secrets.token_hex(6)}.{ext}"
+    full_path = _resolve_safe_photo_path(filename)
+    if not full_path:
+        return None, "Could not resolve a safe storage path for the School ID photo."
+
+    with open(full_path, "wb") as fp:
+        fp.write(raw_bytes)
+    return filename, None
 
 
 def _is_usable_lan_ip(ip: str) -> bool:
@@ -719,16 +947,133 @@ def _seed_initial_transactions(cur: sqlite3.Cursor, now_dt: datetime) -> None:
     )
 
 
+SEED_STUDENT_ACCOUNTS = [
+    (
+        "AUJRC-2026-0101",
+        "One Enrique Sebastian G. Abalos",
+        "STEM",
+        "one.abalos@arellano.edu.ph",
+        "student123",
+        "approved",
+    ),
+    (
+        "AUJRC-2026-0102",
+        "Christine S. Contreras",
+        "STEM",
+        "christine.contreras@arellano.edu.ph",
+        "student123",
+        "approved",
+    ),
+    (
+        "AUJRC-2026-0103",
+        "Queen Hannah A. Dones",
+        "HUMSS",
+        "queenhannah.dones@arellano.edu.ph",
+        "student123",
+        "approved",
+    ),
+    (
+        "AUJRC-2026-0105",
+        "Ashlyjicks B. Pangilinan",
+        "STEM",
+        "ashlyjicks.pangilinan@arellano.edu.ph",
+        "student123",
+        "pending",
+    ),
+]
+
+
+def _ensure_seeded_school_id_svg(
+    filename: str,
+    full_name: str,
+    student_id_lrn: str,
+    grade_section: str,
+    school_email: str,
+    status: str,
+) -> None:
+    full_path = _resolve_safe_photo_path(filename)
+    if not full_path:
+        return
+    if not os.path.isfile(full_path):
+        svg_content = _build_sample_school_id_svg(
+            full_name, student_id_lrn, grade_section, school_email, status
+        )
+        with open(full_path, "w", encoding="utf-8") as fp:
+            fp.write(svg_content)
+
+
+def _seed_initial_student_accounts(cur: sqlite3.Cursor, now_dt: datetime) -> None:
+    """Seed 4 demo student accounts (3 approved, 1 pending) with sample AU-JRC SVG IDs."""
+    admin_name = get_admin_name()
+    for lrn, full_name, grade_section, email, raw_password, status in SEED_STUDENT_ACCOUNTS:
+        safe_lrn = re.sub(r"[^A-Z0-9_-]+", "_", lrn.upper()).strip("_") or "STUDENT"
+        filename = f"seed_{safe_lrn}.svg"
+        svg_content = _build_sample_school_id_svg(
+            full_name, lrn, grade_section, email, status
+        )
+        full_path = _resolve_safe_photo_path(filename)
+        if full_path:
+            with open(full_path, "w", encoding="utf-8") as fp:
+                fp.write(svg_content)
+
+        is_approved = status == "approved"
+        created_at = (
+            (now_dt - timedelta(days=3)).isoformat()
+            if is_approved
+            else (now_dt - timedelta(minutes=25)).isoformat()
+        )
+        updated_at = (
+            (now_dt - timedelta(days=2)).isoformat()
+            if is_approved
+            else (now_dt - timedelta(minutes=25)).isoformat()
+        )
+
+        cur.execute(
+            """
+            INSERT INTO student_accounts (
+                student_id_lrn, full_name, grade_section, school_email,
+                password_hash, id_photo_filename, status, rejection_reason,
+                reviewed_by, reviewed_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)
+            """,
+            (
+                lrn.upper(),
+                full_name,
+                grade_section.upper(),
+                email.lower(),
+                hash_password(raw_password),
+                filename,
+                status,
+                admin_name if is_approved else None,
+                updated_at if is_approved else None,
+                created_at,
+                updated_at,
+            ),
+        )
+
+
 def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
     global _db_initialized_path
     conn = get_db()
     cur = conn.cursor()
 
     if force_reset:
+        try:
+            old_photos = cur.execute(
+                "SELECT id_photo_filename FROM student_accounts"
+            ).fetchall()
+            for r in old_photos:
+                _delete_photo_file_safe(r["id_photo_filename"])
+        except sqlite3.OperationalError:
+            pass
+
         cur.execute("DROP TABLE IF EXISTS equipment")
         cur.execute("DROP TABLE IF EXISTS student_transactions")
         cur.execute("DROP TABLE IF EXISTS checkout_sessions")
         cur.execute("DROP TABLE IF EXISTS safety_status")
+        cur.execute("DROP TABLE IF EXISTS student_accounts")
+        cur.execute("DROP TABLE IF EXISTS student_sessions")
+        # Preserve admin_sessions so active admin is not logged out on demo reset
 
     cur.execute(
         """
@@ -804,6 +1149,49 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
         """
     )
 
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS student_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id_lrn TEXT NOT NULL UNIQUE,
+            full_name TEXT NOT NULL,
+            grade_section TEXT NOT NULL,
+            school_email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            id_photo_filename TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            rejection_reason TEXT NOT NULL DEFAULT '',
+            reviewed_by TEXT,
+            reviewed_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS student_sessions (
+            token TEXT PRIMARY KEY,
+            student_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS admin_sessions (
+            token TEXT PRIMARY KEY,
+            email TEXT NOT NULL,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL
+        )
+        """
+    )
+
     now_dt = datetime.now(timezone.utc)
     now_iso = now_dt.isoformat()
 
@@ -839,6 +1227,24 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
     if cur.fetchone()[0] == 0:
         _seed_initial_transactions(cur, now_dt)
 
+    cur.execute("SELECT COUNT(*) FROM student_accounts")
+    if cur.fetchone()[0] == 0:
+        _seed_initial_student_accounts(cur, now_dt)
+    else:
+        seeded_rows = cur.execute(
+            "SELECT student_id_lrn, full_name, grade_section, school_email, id_photo_filename, status "
+            "FROM student_accounts WHERE id_photo_filename LIKE 'seed_%.svg'"
+        ).fetchall()
+        for r in seeded_rows:
+            _ensure_seeded_school_id_svg(
+                r["id_photo_filename"],
+                r["full_name"],
+                r["student_id_lrn"],
+                r["grade_section"],
+                r["school_email"],
+                r["status"],
+            )
+
     conn.commit()
     safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
     conn.close()
@@ -846,6 +1252,87 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
     _db_initialized_path = get_db_path()
     safety_level = safety_row["level"] if safety_row else "SAFE"
     led_controller.set_safety_level(safety_level, beep_on_change=beep_on_sync)
+
+
+# ==============================================================================
+# AUTHENTICATION HELPERS (ADMIN & STUDENT BEARER SESSIONS)
+# ==============================================================================
+def extract_bearer_token(req: Any, *, allow_query_token: bool = False) -> Optional[str]:
+    auth_header = (req.headers.get("Authorization") or "").strip()
+    if auth_header.lower().startswith("bearer "):
+        tok = auth_header[7:].strip()
+        if tok:
+            return tok
+    if allow_query_token:
+        qtok = (req.args.get("token") or "").strip()
+        if qtok:
+            return qtok
+    return None
+
+
+def get_authenticated_admin(
+    req: Any, *, allow_query_token: bool = False
+) -> Optional[Dict[str, Any]]:
+    token = extract_bearer_token(req, allow_query_token=allow_query_token)
+    if not token:
+        return None
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM admin_sessions WHERE token = ?", (token,)
+        ).fetchone()
+        if not row:
+            return None
+        expires_dt = _parse_iso_utc(row["expires_at"])
+        if expires_dt is None or expires_dt <= datetime.now(timezone.utc):
+            conn.execute("DELETE FROM admin_sessions WHERE token = ?", (token,))
+            conn.commit()
+            return None
+        return {
+            "token": row["token"],
+            "email": row["email"],
+            "name": row["name"],
+            "created_at": row["created_at"],
+            "expires_at": row["expires_at"],
+        }
+    finally:
+        conn.close()
+
+
+def require_admin_auth(*, allow_query_token: bool = False):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            admin_session = get_authenticated_admin(
+                request, allow_query_token=allow_query_token
+            )
+            if not admin_session:
+                return jsonify({"error": "Administrator authentication required."}), 401
+            g.admin_session = admin_session
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def serialize_student(row: sqlite3.Row) -> Dict[str, Any]:
+    photo_filename = row["id_photo_filename"] or ""
+    return {
+        "id": row["id"],
+        "student_id_lrn": row["student_id_lrn"],
+        "full_name": row["full_name"],
+        "grade_section": row["grade_section"],
+        "school_email": row["school_email"],
+        "status": row["status"],
+        "rejection_reason": row["rejection_reason"] or "",
+        "reviewed_by": row["reviewed_by"],
+        "reviewed_at": row["reviewed_at"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+        "has_id_photo": bool(photo_filename) and _photo_file_exists(photo_filename),
+        "id_photo_url": f"/api/admin/students/{row['id']}/id-photo",
+    }
 
 
 def ensure_db_initialized() -> None:
@@ -992,6 +1479,13 @@ def kiosk_page():
 def student_form_page(token: str = ""):
     """Serves File 2: QR-Redirected Student Information Form (templates/student_form.html)."""
     return render_template("student_form.html", session_token=token)
+
+
+@app.route("/student/register")
+@app.route("/student_register.html")
+def student_register_page():
+    """Serves Student Registration & School ID Upload page (templates/student_register.html)."""
+    return render_template("student_register.html")
 
 
 @app.route("/admin")
@@ -1491,7 +1985,620 @@ def api_return_equipment():
     })
 
 
+# ==============================================================================
+# SPEC-01: REGISTRATION QR, STUDENT AUTH & ADMIN APPROVAL ENDPOINTS
+# ==============================================================================
+@app.route("/api/kiosk/registration-qr", methods=["GET"])
+def api_kiosk_registration_qr():
+    base_url = resolve_public_base_url(request)
+    register_url = f"{base_url}/student/register"
+    account_url = f"{base_url}/student/account"
+    return jsonify({
+        "register_url": register_url,
+        "account_url": account_url,
+        "qr_data_url": make_qr_data_url(register_url),
+        "account_qr_data_url": make_qr_data_url(account_url),
+    })
+
+
+@app.route("/api/students/register", methods=["POST"])
+def api_student_register():
+    data = request.get_json(silent=True) or {}
+    full_name = str(data.get("full_name") or "").strip()
+    student_id_lrn = str(data.get("student_id_lrn") or "").strip().upper()
+    grade_section = str(data.get("grade_section") or "").strip().upper()
+    school_email = str(data.get("school_email") or "").strip().lower()
+    password = str(data.get("password") or "")
+    id_photo_data_url = str(data.get("id_photo_data_url") or "").strip()
+
+    if not (
+        full_name
+        and student_id_lrn
+        and grade_section
+        and school_email
+        and password
+        and id_photo_data_url
+    ):
+        return (
+            jsonify({
+                "error": (
+                    "Please fill in Full Name, Student ID / LRN, Strand / Faculty, "
+                    "School Email, Password, and upload your School ID photo."
+                )
+            }),
+            400,
+        )
+
+    if grade_section not in VALID_GRADE_SECTIONS:
+        return (
+            jsonify({
+                "error": "Strand / Faculty must be one of STEM, HUMSS, ABM, or FACULTY."
+            }),
+            400,
+        )
+
+    if not EMAIL_RE.match(school_email):
+        return jsonify({"error": "Please enter a valid school email address."}), 400
+
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters long."}), 400
+
+    conn = get_db()
+    new_photo_filename: Optional[str] = None
+    old_photo_to_delete: Optional[str] = None
+    try:
+        matches = conn.execute(
+            "SELECT * FROM student_accounts WHERE student_id_lrn = ? OR school_email = ?",
+            (student_id_lrn, school_email),
+        ).fetchall()
+
+        if len(matches) > 1 or (len(matches) == 1 and matches[0]["status"] != "rejected"):
+            return (
+                jsonify({
+                    "error": "A student account with this Student ID / LRN or School Email already exists."
+                }),
+                409,
+            )
+
+        new_photo_filename, photo_err = _save_id_photo_from_data_url(
+            student_id_lrn, id_photo_data_url
+        )
+        if not new_photo_filename:
+            return jsonify({"error": photo_err or "Invalid School ID image."}), 400
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        password_hash = hash_password(password)
+
+        try:
+            if len(matches) == 1 and matches[0]["status"] == "rejected":
+                existing = matches[0]
+                old_photo_to_delete = existing["id_photo_filename"]
+                conn.execute(
+                    """
+                    UPDATE student_accounts
+                    SET student_id_lrn = ?, full_name = ?, grade_section = ?,
+                        school_email = ?, password_hash = ?, id_photo_filename = ?,
+                        status = 'pending', rejection_reason = '',
+                        reviewed_by = NULL, reviewed_at = NULL, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        student_id_lrn,
+                        full_name,
+                        grade_section,
+                        school_email,
+                        password_hash,
+                        new_photo_filename,
+                        now_iso,
+                        existing["id"],
+                    ),
+                )
+                account_id = existing["id"]
+            else:
+                cur = conn.execute(
+                    """
+                    INSERT INTO student_accounts (
+                        student_id_lrn, full_name, grade_section, school_email,
+                        password_hash, id_photo_filename, status, rejection_reason,
+                        reviewed_by, reviewed_at, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'pending', '', NULL, NULL, ?, ?)
+                    """,
+                    (
+                        student_id_lrn,
+                        full_name,
+                        grade_section,
+                        school_email,
+                        password_hash,
+                        new_photo_filename,
+                        now_iso,
+                        now_iso,
+                    ),
+                )
+                account_id = cur.lastrowid
+
+            conn.commit()
+        except sqlite3.IntegrityError:
+            _delete_photo_file_safe(new_photo_filename)
+            return (
+                jsonify({
+                    "error": "A student account with this Student ID / LRN or School Email already exists."
+                }),
+                409,
+            )
+
+        row = conn.execute(
+            "SELECT * FROM student_accounts WHERE id = ?", (account_id,)
+        ).fetchone()
+        student_dict = serialize_student(row)
+    finally:
+        conn.close()
+
+    if old_photo_to_delete and old_photo_to_delete != new_photo_filename:
+        _delete_photo_file_safe(old_photo_to_delete)
+
+    broadcast_global_update({"event": "accounts_updated"})
+    return jsonify({"success": True, "student": student_dict}), 201
+
+
+@app.route("/api/students/status", methods=["GET"])
+def api_student_status():
+    identifier = str(request.args.get("identifier") or "").strip()
+    if not identifier:
+        return jsonify({"found": False})
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT student_id_lrn, status, rejection_reason, updated_at "
+            "FROM student_accounts WHERE student_id_lrn = ? OR school_email = ?",
+            (identifier.upper(), identifier.lower()),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        return jsonify({"found": False})
+
+    return jsonify({
+        "found": True,
+        "status": row["status"],
+        "rejection_reason": row["rejection_reason"] or "",
+        "student_id_lrn": row["student_id_lrn"],
+        "updated_at": row["updated_at"],
+    })
+
+
+@app.route("/api/students/login", methods=["POST"])
+def api_student_login():
+    data = request.get_json(silent=True) or {}
+    identifier = str(
+        data.get("identifier") or data.get("email") or data.get("student_id_lrn") or ""
+    ).strip()
+    password = str(data.get("password") or "")
+
+    if not identifier or not password:
+        return jsonify({"error": "Invalid Student ID / Email or password."}), 401
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM student_accounts WHERE student_id_lrn = ? OR school_email = ?",
+            (identifier.upper(), identifier.lower()),
+        ).fetchone()
+
+        if not row or not verify_password(password, row["password_hash"]):
+            return jsonify({"error": "Invalid Student ID / Email or password."}), 401
+
+        status = row["status"]
+        if status == "pending":
+            return (
+                jsonify({
+                    "error": "Your registration is pending Laboratory Admin verification of your School ID.",
+                    "account_status": "pending",
+                }),
+                403,
+            )
+        if status == "rejected":
+            return (
+                jsonify({
+                    "error": "Your registration was rejected by the Laboratory Admin.",
+                    "account_status": "rejected",
+                    "rejection_reason": row["rejection_reason"] or "",
+                }),
+                403,
+            )
+        if status == "suspended":
+            return (
+                jsonify({
+                    "error": "Your student account is suspended. Please contact Laboratory Personnel.",
+                    "account_status": "suspended",
+                }),
+                403,
+            )
+
+        token = f"STU-{secrets.token_urlsafe(24)}"
+        now_dt = datetime.now(timezone.utc)
+        expires_dt = now_dt + timedelta(days=STUDENT_SESSION_DAYS)
+        conn.execute(
+            """
+            INSERT INTO student_sessions (token, student_id, created_at, expires_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (token, row["id"], now_dt.isoformat(), expires_dt.isoformat()),
+        )
+        conn.commit()
+        student_dict = serialize_student(row)
+    finally:
+        conn.close()
+
+    return jsonify({"success": True, "token": token, "student": student_dict})
+
+
+@app.route("/api/students/me", methods=["GET"])
+def api_student_me():
+    token = extract_bearer_token(request, allow_query_token=False)
+    if not token:
+        return jsonify({"error": "Student authentication required."}), 401
+
+    conn = get_db()
+    try:
+        sess = conn.execute(
+            "SELECT * FROM student_sessions WHERE token = ?", (token,)
+        ).fetchone()
+        if not sess:
+            return jsonify({"error": "Student authentication required."}), 401
+        expires_dt = _parse_iso_utc(sess["expires_at"])
+        if expires_dt is None or expires_dt <= datetime.now(timezone.utc):
+            conn.execute("DELETE FROM student_sessions WHERE token = ?", (token,))
+            conn.commit()
+            return jsonify({"error": "Student authentication required."}), 401
+
+        row = conn.execute(
+            "SELECT * FROM student_accounts WHERE id = ?", (sess["student_id"],)
+        ).fetchone()
+        if not row:
+            conn.execute("DELETE FROM student_sessions WHERE token = ?", (token,))
+            conn.commit()
+            return jsonify({"error": "Student authentication required."}), 401
+
+        if row["status"] != "approved":
+            return (
+                jsonify({
+                    "error": "Your student account is not approved for active access.",
+                    "account_status": row["status"],
+                    "rejection_reason": row["rejection_reason"] or "",
+                }),
+                403,
+            )
+        student_dict = serialize_student(row)
+    finally:
+        conn.close()
+
+    return jsonify({"student": student_dict})
+
+
+@app.route("/api/students/logout", methods=["POST"])
+def api_student_logout():
+    token = extract_bearer_token(request, allow_query_token=False)
+    if not token:
+        return jsonify({"error": "Student authentication required."}), 401
+
+    conn = get_db()
+    try:
+        sess = conn.execute(
+            "SELECT * FROM student_sessions WHERE token = ?", (token,)
+        ).fetchone()
+        if not sess:
+            return jsonify({"error": "Student authentication required."}), 401
+        expires_dt = _parse_iso_utc(sess["expires_at"])
+        conn.execute("DELETE FROM student_sessions WHERE token = ?", (token,))
+        conn.commit()
+        if expires_dt is None or expires_dt <= datetime.now(timezone.utc):
+            return jsonify({"error": "Student authentication required."}), 401
+    finally:
+        conn.close()
+
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/login", methods=["POST"])
+def api_admin_login():
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email") or "").strip().lower()
+    password = str(data.get("password") or "")
+
+    configured_email = get_admin_email()
+    configured_password = get_admin_password()
+    configured_name = get_admin_name()
+
+    email_ok = hmac.compare_digest(
+        email.encode("utf-8"), configured_email.lower().encode("utf-8")
+    )
+    password_ok = hmac.compare_digest(
+        password.encode("utf-8"), configured_password.encode("utf-8")
+    )
+    if not (email_ok and password_ok):
+        return jsonify({"error": "Invalid administrator email or password."}), 401
+
+    token = f"ADM-{secrets.token_urlsafe(24)}"
+    now_dt = datetime.now(timezone.utc)
+    expires_dt = now_dt + timedelta(hours=ADMIN_SESSION_HOURS)
+
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO admin_sessions (token, email, name, created_at, expires_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                token,
+                configured_email,
+                configured_name,
+                now_dt.isoformat(),
+                expires_dt.isoformat(),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return jsonify({
+        "success": True,
+        "token": token,
+        "admin": {
+            "email": configured_email,
+            "name": configured_name,
+        },
+    })
+
+
+@app.route("/api/admin/me", methods=["GET"])
+@require_admin_auth()
+def api_admin_me():
+    admin = g.admin_session
+    return jsonify({
+        "admin": {
+            "email": admin["email"],
+            "name": admin["name"],
+        }
+    })
+
+
+@app.route("/api/admin/logout", methods=["POST"])
+@require_admin_auth()
+def api_admin_logout():
+    admin = g.admin_session
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM admin_sessions WHERE token = ?", (admin["token"],))
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/students", methods=["GET"])
+@require_admin_auth()
+def api_admin_list_students():
+    status_filter = str(request.args.get("status") or "all").strip().lower()
+    conn = get_db()
+    try:
+        all_rows = conn.execute(
+            """
+            SELECT * FROM student_accounts
+            ORDER BY
+                CASE status
+                    WHEN 'pending' THEN 0
+                    WHEN 'approved' THEN 1
+                    WHEN 'suspended' THEN 2
+                    ELSE 3
+                END,
+                id DESC
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+    counts = {
+        "total": len(all_rows),
+        "pending": 0,
+        "approved": 0,
+        "rejected": 0,
+        "suspended": 0,
+    }
+    for r in all_rows:
+        st = r["status"]
+        if st in counts:
+            counts[st] += 1
+
+    if status_filter and status_filter != "all" and status_filter in VALID_STUDENT_STATUSES:
+        filtered = [r for r in all_rows if r["status"] == status_filter]
+    else:
+        filtered = all_rows
+
+    return jsonify({
+        "students": [serialize_student(r) for r in filtered],
+        "counts": counts,
+    })
+
+
+@app.route("/api/admin/students/<int:student_id>/id-photo", methods=["GET"])
+@require_admin_auth(allow_query_token=True)
+def api_admin_student_id_photo(student_id: int):
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, id_photo_filename FROM student_accounts WHERE id = ?",
+            (student_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        return jsonify({"error": "Student account not found."}), 404
+
+    filename = row["id_photo_filename"] or ""
+    full_path = _resolve_safe_photo_path(filename)
+    if not full_path or not os.path.isfile(full_path):
+        return jsonify({"error": "School ID photo not found."}), 404
+
+    _, ext = os.path.splitext(filename.lower())
+    content_type = EXT_TO_MIME.get(ext, "application/octet-stream")
+    with open(full_path, "rb") as fp:
+        raw_bytes = fp.read()
+
+    headers = {
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+    }
+    if content_type == "image/svg+xml":
+        headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'"
+
+    return Response(raw_bytes, status=200, mimetype=content_type, headers=headers)
+
+
+@app.route("/api/admin/students/<int:student_id>/approve", methods=["POST"])
+@require_admin_auth()
+def api_admin_approve_student(student_id: int):
+    admin = g.admin_session
+    now_iso = datetime.now(timezone.utc).isoformat()
+    reviewer = admin["name"] or admin["email"]
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM student_accounts WHERE id = ?", (student_id,)
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "Student account not found."}), 404
+
+        conn.execute(
+            """
+            UPDATE student_accounts
+            SET status = 'approved', rejection_reason = '',
+                reviewed_by = ?, reviewed_at = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (reviewer, now_iso, now_iso, student_id),
+        )
+        conn.commit()
+        updated = conn.execute(
+            "SELECT * FROM student_accounts WHERE id = ?", (student_id,)
+        ).fetchone()
+        student_dict = serialize_student(updated)
+    finally:
+        conn.close()
+
+    broadcast_global_update({"event": "accounts_updated"})
+    return jsonify({"success": True, "student": student_dict})
+
+
+@app.route("/api/admin/students/<int:student_id>/reject", methods=["POST"])
+@require_admin_auth()
+def api_admin_reject_student(student_id: int):
+    admin = g.admin_session
+    data = request.get_json(silent=True) or {}
+    reason = (
+        str(data.get("reason") or "").strip()
+        or "School ID photo could not be verified. Please re-submit with a clearer photo."
+    )
+    now_iso = datetime.now(timezone.utc).isoformat()
+    reviewer = admin["name"] or admin["email"]
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM student_accounts WHERE id = ?", (student_id,)
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "Student account not found."}), 404
+
+        conn.execute(
+            """
+            UPDATE student_accounts
+            SET status = 'rejected', rejection_reason = ?,
+                reviewed_by = ?, reviewed_at = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (reason, reviewer, now_iso, now_iso, student_id),
+        )
+        conn.execute("DELETE FROM student_sessions WHERE student_id = ?", (student_id,))
+        conn.commit()
+        updated = conn.execute(
+            "SELECT * FROM student_accounts WHERE id = ?", (student_id,)
+        ).fetchone()
+        student_dict = serialize_student(updated)
+    finally:
+        conn.close()
+
+    broadcast_global_update({"event": "accounts_updated"})
+    return jsonify({"success": True, "student": student_dict})
+
+
+@app.route("/api/admin/students/<int:student_id>/suspend", methods=["POST"])
+@require_admin_auth()
+def api_admin_suspend_student(student_id: int):
+    admin = g.admin_session
+    now_iso = datetime.now(timezone.utc).isoformat()
+    reviewer = admin["name"] or admin["email"]
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM student_accounts WHERE id = ?", (student_id,)
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "Student account not found."}), 404
+
+        conn.execute(
+            """
+            UPDATE student_accounts
+            SET status = 'suspended', reviewed_by = ?, reviewed_at = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (reviewer, now_iso, now_iso, student_id),
+        )
+        conn.execute("DELETE FROM student_sessions WHERE student_id = ?", (student_id,))
+        conn.commit()
+        updated = conn.execute(
+            "SELECT * FROM student_accounts WHERE id = ?", (student_id,)
+        ).fetchone()
+        student_dict = serialize_student(updated)
+    finally:
+        conn.close()
+
+    broadcast_global_update({"event": "accounts_updated"})
+    return jsonify({"success": True, "student": student_dict})
+
+
+@app.route("/api/admin/students/<int:student_id>", methods=["DELETE"])
+@require_admin_auth()
+def api_admin_delete_student(student_id: int):
+    conn = get_db()
+    photo_to_delete: Optional[str] = None
+    try:
+        row = conn.execute(
+            "SELECT id, id_photo_filename FROM student_accounts WHERE id = ?",
+            (student_id,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "Student account not found."}), 404
+
+        photo_to_delete = row["id_photo_filename"]
+        conn.execute("DELETE FROM student_sessions WHERE student_id = ?", (student_id,))
+        conn.execute("DELETE FROM student_accounts WHERE id = ?", (student_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    _delete_photo_file_safe(photo_to_delete)
+    broadcast_global_update({"event": "accounts_updated"})
+    return jsonify({"success": True})
+
+
 @app.route("/api/admin/equipment", methods=["POST"])
+@require_admin_auth()
 def api_add_equipment():
     data = request.get_json(silent=True) or {}
     name = str(data.get("name") or "").strip()
@@ -1561,6 +2668,7 @@ def api_add_equipment():
 
 
 @app.route("/api/admin/equipment/<int:item_id>", methods=["PATCH", "DELETE"])
+@require_admin_auth()
 def api_modify_equipment(item_id: int):
     conn = get_db()
     try:
@@ -1662,12 +2770,18 @@ def api_modify_equipment(item_id: int):
 
 
 @app.route("/api/admin/safety-status", methods=["POST"])
+@require_admin_auth()
 def api_update_safety_status():
+    admin = g.admin_session
     data = request.get_json(silent=True) or {}
     level = data.get("level") if data.get("level") in ("SAFE", "CAUTION", "UNSAFE") else "SAFE"
     preset = SAFETY_PRESETS[level]
     message = str(data.get("message") or "").strip() or preset["message"]
-    updated_by = str(data.get("updated_by") or "").strip() or "AU-JRC Science Laboratory Personnel"
+    updated_by = (
+        str(data.get("updated_by") or "").strip()
+        or admin.get("name")
+        or "AU-JRC Science Laboratory Personnel"
+    )
     now_iso = datetime.now(timezone.utc).isoformat()
 
     conn = get_db()
@@ -1698,6 +2812,7 @@ def api_update_safety_status():
 
 
 @app.route("/api/reset", methods=["POST"])
+@require_admin_auth()
 def api_reset():
     init_db(force_reset=True, beep_on_sync=True)
     safety_dict = get_current_safety_status()
@@ -1706,6 +2821,7 @@ def api_reset():
         "safety_status": safety_dict,
         "hardware": led_controller.get_status(),
     })
+    broadcast_global_update({"event": "accounts_updated"})
     return jsonify({"success": True})
 
 
@@ -1717,8 +2833,10 @@ if __name__ == "__main__":
     print(f"LabGuard+ Python Flask Server running on http://0.0.0.0:{port}")
     print(f"  -> LAN Base URL:        {base_url}")
     print(f"  -> Student Kiosk UI:    {base_url}/kiosk")
+    print(f"  -> Student Register UI: {base_url}/student/register")
     print(f"  -> Admin Dashboard UI:  {base_url}/admin")
     print(f"  -> SQLite Database:     {get_db_path()}")
+    print(f"  -> ID Photos Directory: {get_id_photos_dir()}")
     print(f"  -> Hardware LED Mode:   {hw['hardware_mode']} ({hw['note']})")
     print(f"  -> WebSockets:          {'enabled (flask-sock)' if sock is not None else 'disabled (polling fallback)'}")
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
