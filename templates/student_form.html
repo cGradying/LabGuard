@@ -4,24 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>LabGuard+ Mobile Student Form — Arellano University Jose Rizal Campus</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="stylesheet" href="/css/labguard.css" />
     <style>
       body {
-        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        font-family: 'DM Sans', 'DejaVu Sans', system-ui, sans-serif;
         color: #0f172a;
         -webkit-tap-highlight-color: transparent;
       }
       h1, h2, h3, h4, .font-heading {
-        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        font-family: 'Plus Jakarta Sans', 'DejaVu Sans', system-ui, -apple-system, sans-serif;
       }
       .font-mono {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'JetBrains Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
         font-variant-numeric: tabular-nums;
       }
       .tabular-nums {
@@ -188,7 +182,7 @@
               <!-- Spring Popping Circular Badge -->
               <div class="relative w-16 h-16 rounded-full bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-xl shadow-emerald-500/35 check-circle-pop border-2 border-white/80">
                 <!-- SVG with Self-Drawing Checkmark Path -->
-                <svg class="w-9 h-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                <svg class="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
                   <path class="check-svg-path" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>
               </div>
@@ -208,9 +202,15 @@
             class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5 font-medium"
           ></div>
 
+          <div class="sm:hidden p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+            <p class="text-xs font-semibold text-emerald-900 leading-snug">
+              You may now show this pass to the lab counter or close this tab.
+            </p>
+          </div>
+
           <a
             href="/kiosk"
-            class="block w-full py-3.5 px-4 bg-[#003087] hover:bg-[#002466] active:scale-95 text-white text-center text-xs font-heading font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer"
+            class="hidden sm:block w-full py-3.5 px-4 bg-[#003087] hover:bg-[#002466] active:scale-95 text-white text-center text-xs font-heading font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer"
           >
             Done · Return to Kiosk
           </a>
@@ -692,13 +692,20 @@
           path.style.animation = '';
         }
 
+        const dueRaw = tx.expected_return || tx.time_out_expected;
+        const dueDate = dueRaw ? new Date(dueRaw) : null;
+        const dueFormatted =
+          dueDate && !isNaN(dueDate.getTime())
+            ? `${dueDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : 'Scheduled with Lab Counter';
+
         document.getElementById('receipt-code').textContent = `Pass Code: ${tx.transaction_code}`;
         document.getElementById('receipt-details').innerHTML = `
           <p><strong>Student:</strong> ${tx.student_name}</p>
           <p><strong>ID / Dept:</strong> ${tx.student_id_lrn} · ${tx.grade_section}</p>
           <p><strong>Subject:</strong> ${tx.subject_activity}</p>
           <p><strong>Teacher:</strong> ${tx.teacher_name}</p>
-          <p><strong>Due Back:</strong> ${new Date(tx.time_out_expected).toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${new Date(tx.time_out_expected).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+          <p><strong>Due Back:</strong> ${dueFormatted}</p>
           <p><strong>Checked Out:</strong> ${(tx.items || []).map((i) => `${i.quantity}× ${i.name}`).join(', ')}</p>
         `;
       }
@@ -706,8 +713,8 @@
       loadCheckoutSession();
     </script>
 
-    <!-- Discreet Prototype Route Helper -->
-    <div id="proto-route-helper" class="fixed bottom-3 right-3 z-50 bg-slate-900/90 text-white border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg flex items-center gap-2.5">
+    <!-- Discreet Prototype Route Helper (Desktop preview only — hidden on mobile phones) -->
+    <div id="proto-route-helper" class="hidden sm:flex fixed bottom-3 right-3 z-50 bg-slate-900/90 text-white border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg items-center gap-2.5">
       <span class="font-mono text-[11px] text-slate-400">Preview Routes:</span>
       <a href="/kiosk" class="font-medium text-white hover:text-[#F5A623] underline">kiosk.html</a>
       <span class="text-slate-600">·</span>

@@ -4,24 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LabGuard+ PC Admin Console — Arellano University Jose Rizal Campus</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="stylesheet" href="/css/labguard.css" />
     <style>
       body {
-        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        font-family: 'DM Sans', 'DejaVu Sans', system-ui, sans-serif;
         background-color: #f8fafc;
         color: #0f172a;
       }
       h1, h2, h3, h4, .font-heading {
-        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        font-family: 'Plus Jakarta Sans', 'DejaVu Sans', system-ui, -apple-system, sans-serif;
       }
       .font-mono {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'JetBrains Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
         font-variant-numeric: tabular-nums;
       }
       .tabular-nums {
@@ -332,7 +326,7 @@
           <!-- ============================================================= -->
           <!-- TAB 3: LED SAFETY STATUS DISPLAY CONTROLLER                   -->
           <!-- ============================================================= -->
-          <section id="tab-safety-section" class="hidden">
+          <section id="tab-safety-section" class="hidden space-y-5">
             <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-5 max-w-3xl">
               <div class="border-b border-slate-200 pb-4">
                 <h2 class="text-lg font-bold text-slate-900 font-heading">
@@ -388,6 +382,63 @@
                 >
                   Broadcast Message to Touchscreen Kiosk
                 </button>
+              </div>
+            </div>
+
+            <!-- Compact Raspberry Pi Hardware & Network Info Card -->
+            <div id="pi-hardware-card" class="hidden bg-white border border-slate-200 rounded-xl p-5 space-y-4 max-w-3xl">
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900 font-heading">
+                    Raspberry Pi Hardware &amp; Network Info
+                  </h3>
+                  <p id="hw-gpio-note" class="text-[11px] text-slate-500 mt-0.5">
+                    Checking GPIO controller &amp; local LAN addresses...
+                  </p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span
+                    id="hw-gpio-badge"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200"
+                  >
+                    Simulation Mode
+                  </span>
+                  <button
+                    type="button"
+                    onclick="fetchHardwareStatus()"
+                    class="px-2.5 py-1 text-[11px] font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              <div id="hw-pins-row" class="hidden text-[11px] font-mono text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1"></div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1 min-w-0">
+                  <p class="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
+                    Kiosk LAN URL
+                  </p>
+                  <a
+                    id="hw-kiosk-url"
+                    href="/kiosk"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="block text-xs font-mono font-bold text-[#003087] hover:underline break-all"
+                  >
+                    —
+                  </a>
+                </div>
+
+                <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1 min-w-0">
+                  <p class="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
+                    Mobile Checkout Base URL
+                  </p>
+                  <p id="hw-mobile-url" class="text-xs font-mono font-semibold text-slate-800 break-all">
+                    —
+                  </p>
+                </div>
               </div>
             </div>
           </section>
@@ -640,6 +691,7 @@
           document.getElementById('admin-login-screen').classList.add('hidden');
           document.getElementById('admin-dashboard-shell').classList.remove('hidden');
           fetchAdminState();
+          fetchHardwareStatus();
         } else {
           document.getElementById('login-error').classList.remove('hidden');
         }
@@ -694,6 +746,82 @@
               'w-full px-3.5 py-2.5 rounded-lg text-left text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer flex items-center justify-between';
           }
         });
+
+        if (tab === 'safety') {
+          fetchHardwareStatus();
+        }
+      }
+
+      async function fetchHardwareStatus() {
+        const card = document.getElementById('pi-hardware-card');
+        if (!card) return;
+        try {
+          const res = await fetch('/api/hardware/status');
+          if (!res.ok) {
+            card.classList.add('hidden');
+            return;
+          }
+          const data = await res.json();
+          const hw = data.hardware || data || {};
+          const gpioActive = Boolean(hw.gpio_active || hw.hardware_mode === 'raspberry_pi_gpio');
+          const pins = hw.pins || null;
+
+          const badge = document.getElementById('hw-gpio-badge');
+          const noteEl = document.getElementById('hw-gpio-note');
+          const pinsRow = document.getElementById('hw-pins-row');
+          const kioskUrlEl = document.getElementById('hw-kiosk-url');
+          const mobileUrlEl = document.getElementById('hw-mobile-url');
+
+          if (badge) {
+            if (gpioActive) {
+              badge.className =
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200';
+              badge.textContent = '● Raspberry Pi GPIO Active';
+            } else {
+              badge.className =
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200';
+              badge.textContent = '○ Simulation Mode';
+            }
+          }
+
+          if (noteEl) {
+            noteEl.textContent =
+              hw.note ||
+              (gpioActive
+                ? 'Driving physical 3-color safety LED tower over Raspberry Pi GPIO.'
+                : 'Software simulation active (no Raspberry Pi GPIO attached).');
+          }
+
+          if (pinsRow) {
+            if (pins && (pins.green || pins.yellow || pins.red || pins.buzzer)) {
+              const parts = [];
+              if (pins.green) parts.push(`Green: BCM ${pins.green}`);
+              if (pins.yellow) parts.push(`Yellow: BCM ${pins.yellow}`);
+              if (pins.red) parts.push(`Red: BCM ${pins.red}`);
+              if (pins.buzzer) parts.push(`Buzzer: BCM ${pins.buzzer}`);
+              pinsRow.textContent = `GPIO Pinout — ${parts.join(' · ')}`;
+              pinsRow.classList.remove('hidden');
+            } else {
+              pinsRow.classList.add('hidden');
+            }
+          }
+
+          const lanBase = (data.lan_url || window.location.origin).replace(/\/+$/, '');
+          const kioskUrl = data.kiosk_url || `${lanBase}/kiosk`;
+          const mobileBaseUrl = `${lanBase}/student/checkout/`;
+
+          if (kioskUrlEl) {
+            kioskUrlEl.textContent = kioskUrl;
+            kioskUrlEl.href = kioskUrl;
+          }
+          if (mobileUrlEl) {
+            mobileUrlEl.textContent = mobileBaseUrl;
+          }
+
+          card.classList.remove('hidden');
+        } catch {
+          card.classList.add('hidden');
+        }
       }
 
       function renderKpis() {
@@ -906,6 +1034,7 @@
           }),
         });
         fetchAdminState();
+        fetchHardwareStatus();
       }
 
       async function resetDemoData() {
@@ -1080,18 +1209,52 @@
         URL.revokeObjectURL(a.href);
       }
 
+      let adminWs = null;
+      let adminWsReconnectTimer = null;
+
+      function scheduleAdminSocketReconnect(delayMs = 3500) {
+        if (adminWsReconnectTimer) clearTimeout(adminWsReconnectTimer);
+        adminWsReconnectTimer = setTimeout(() => {
+          adminWsReconnectTimer = null;
+          connectAdminSocket();
+        }, delayMs);
+      }
+
       function connectAdminSocket() {
-        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(`${proto}//${window.location.host}/ws/kiosk`);
-        ws.onmessage = () => {
-          fetchAdminState();
-        };
-        ws.onclose = () => {
-          setTimeout(connectAdminSocket, 3000);
-        };
+        try {
+          if (adminWs && (adminWs.readyState === WebSocket.OPEN || adminWs.readyState === WebSocket.CONNECTING)) {
+            return;
+          }
+          const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const ws = new WebSocket(`${proto}//${window.location.host}/ws/kiosk`);
+          adminWs = ws;
+
+          ws.onmessage = () => {
+            fetchAdminState();
+            const safetySec = document.getElementById('tab-safety-section');
+            if (safetySec && !safetySec.classList.contains('hidden')) {
+              fetchHardwareStatus();
+            }
+          };
+          ws.onerror = () => {
+            try {
+              ws.close();
+            } catch {
+              // ignore close errors
+            }
+          };
+          ws.onclose = () => {
+            adminWs = null;
+            scheduleAdminSocketReconnect(3500);
+          };
+        } catch {
+          adminWs = null;
+          scheduleAdminSocketReconnect(5000);
+        }
       }
 
       fetchAdminState();
+      fetchHardwareStatus();
       connectAdminSocket();
     </script>
 

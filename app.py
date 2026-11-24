@@ -4,41 +4,76 @@ LabGuard+: A Smart Science Laboratory Safety Station with QR Code Equipment Trac
 QR-Based User Log-In Monitoring, and LED Safety Status Display
 Arellano University - Jose Rizal Campus (Senior High School Department)
 
-Full-Blown Python Flask + SQLite3 Web Application serving 3 separate HTML files:
-  1. templates/kiosk.html        -> GET / and GET /kiosk (Student Kiosk UI only)
-  2. templates/student_form.html -> GET /student/checkout/<token> (QR-Redirected Student Info Form)
-  3. templates/admin.html        -> GET /admin (Admin & Lab Personnel Dashboard)
+Full-Blown Python Flask + SQLite3 + WebSocket + Raspberry Pi GPIO Web Application
+serving 3 separate HTML files:
+  1. templates/kiosk.html        -> GET /, /kiosk, /kiosk.html (Student Kiosk UI)
+  2. templates/student_form.html -> GET /student/checkout/<token>, /student_form.html (QR Mobile Form)
+  3. templates/admin.html        -> GET /admin, /admin.html (Admin & Lab Personnel Dashboard)
 """
+
+from __future__ import annotations
 
 import base64
 import io
 import json
+import logging
 import os
 import random
+import socket
 import sqlite3
 import string
+import threading
 from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional, Set
+from urllib.parse import urlsplit
+
 from flask import Flask, jsonify, render_template, request, send_from_directory
+
+from hardware.led_controller import SafetyLEDController
 
 try:
     import qrcode
 except ImportError:
     qrcode = None
 
+try:
+    from flask_sock import Sock
+except ImportError:
+    Sock = None  # type: ignore
+
+logging.basicConfig(
+    level=os.environ.get("LABGUARD_LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("labguard.server")
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "labguard.db")
+DEFAULT_DB_PATH = os.path.join(BASE_DIR, "labguard.db")
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"))
+sock = Sock(app) if Sock is not None else None
+
+# Hardware GPIO / Simulation LED & Buzzer controller
+led_controller = SafetyLEDController()
+
+# Thread-safe WebSocket client registries
+_ws_lock = threading.Lock()
+_global_ws_clients: Set[Any] = set()
+_checkout_ws_clients: Dict[str, Set[Any]] = {}
+
+# Lazy/startup DB initialization guard (keyed by resolved DB path)
+_db_init_lock = threading.Lock()
+_db_initialized_path: Optional[str] = None
 
 SAFETY_PRESETS = {
     "SAFE": {
         "headline": "LED STATUS: GREEN — LABORATORY SAFE FOR OPERATION",
-        "message": "Standard laboratory operations active. Pick apparatus on the kiosk, scan the Checkout QR code, and complete student log-in.",
+        "message": "Standard laboratory operations active. Scan equipment QR codes and complete student log-in before handling science materials.",
     },
     "CAUTION": {
         "headline": "LED STATUS: YELLOW — CAUTION · PPE & SUPERVISION REQUIRED",
-        "message": "Active thermal, chemical, or fragile glassware experiment in progress. Laboratory gown, safety goggles, and closed-toe shoes are mandatory.",
+        "message": "Caution alert active: inspect reported damaged/missing apparatus or supervise active thermal and glassware experiments. Laboratory PPE is mandatory.",
     },
     "UNSAFE": {
         "headline": "LED STATUS: RED — UNSAFE · RESTRICTED LABORATORY ACCESS",
@@ -62,7 +97,7 @@ STUDENT_PRESETS = [
         "student_id_lrn": "AUJRC-2026-0102",
         "grade_section": "STEM",
         "school_email": "christine.contreras@arellano.edu.ph",
-        "default_subject": "General Chemistry 2 — Acid-Base Titration Lab",
+        "default_subject": "General Chemistry 2 — Solution Prep & Heating Lab",
         "default_teacher": "Ms. Lara Marie Agustin Puertollano",
     },
     {
@@ -71,7 +106,7 @@ STUDENT_PRESETS = [
         "student_id_lrn": "AUJRC-2026-0103",
         "grade_section": "HUMSS",
         "school_email": "queenhannah.dones@arellano.edu.ph",
-        "default_subject": "General Science — Observation & Field Notes",
+        "default_subject": "General Science — Volumetric Measurement Lab",
         "default_teacher": "Ms. Lara Marie Agustin Puertollano",
     },
     {
@@ -316,13 +351,376 @@ INITIAL_EQUIPMENT_SEED = [
 ]
 
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
+# ==============================================================================
+# NETWORK & CONFIGURATION HELPERS
+# ==============================================================================
+def get_server_port() -> int:
+    raw = os.environ.get("PORT") or os.environ.get("FLASK_PORT") or "5000"
+    try:
+        return int(raw)
+    except ValueError:
+        return 5000
+
+
+def get_db_path() -> str:
+    env_path = (os.environ.get("LABGUARD_DB_PATH") or "").strip()
+    return env_path if env_path else DEFAULT_DB_PATH
+
+
+def _is_usable_lan_ip(ip: str) -> bool:
+    if not ip:
+        return False
+    if ip.startswith("127.") or ip == "0.0.0.0" or ip.startswith("169.254."):
+        return False
+    return True
+
+
+def detect_lan_ip() -> Optional[str]:
+    """Detect the active non-loopback LAN IPv4 address for mobile QR scanning."""
+    for target in (("8.8.8.8", 80), ("10.255.255.255", 1)):
+        sock_udp = None
+        try:
+            sock_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock_udp.settimeout(0.5)
+            sock_udp.connect(target)
+            ip = sock_udp.getsockname()[0]
+            if _is_usable_lan_ip(ip):
+                return ip
+        except OSError:
+            pass
+        finally:
+            if sock_udp is not None:
+                try:
+                    sock_udp.close()
+                except OSError:
+                    pass
+
+    try:
+        host_ip = socket.gethostbyname(socket.gethostname())
+        if _is_usable_lan_ip(host_ip):
+            return host_ip
+    except OSError:
+        pass
+
+    return None
+
+
+def resolve_public_base_url(req: Any = None) -> str:
+    """
+    Resolve the phone-reachable base URL (e.g. http://192.168.1.42:5000).
+    Priority:
+      1. APP_URL or LABGUARD_PUBLIC_URL environment variable.
+      2. If incoming request host is loopback/unspecified, substitute detected LAN IP.
+      3. Otherwise preserve the incoming request host (LAN IP, .local mDNS, or domain).
+    """
+    env_url = (
+        os.environ.get("APP_URL") or os.environ.get("LABGUARD_PUBLIC_URL") or ""
+    ).strip().rstrip("/")
+    if env_url:
+        return env_url
+
+    if req is None:
+        lan_ip = detect_lan_ip() or "127.0.0.1"
+        return f"http://{lan_ip}:{get_server_port()}"
+
+    forwarded_proto = (req.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip()
+    scheme = forwarded_proto or getattr(req, "scheme", None) or "http"
+
+    forwarded_host = (req.headers.get("X-Forwarded-Host") or "").split(",")[0].strip()
+    raw_host = forwarded_host or getattr(req, "host", "") or f"localhost:{get_server_port()}"
+
+    parsed = urlsplit(f"{scheme}://{raw_host}")
+    hostname = (parsed.hostname or "").lower()
+    port = parsed.port
+
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+        lan_ip = detect_lan_ip()
+        if lan_ip:
+            if port is not None:
+                return f"{scheme}://{lan_ip}:{port}"
+            return f"{scheme}://{lan_ip}"
+
+    return f"{scheme}://{raw_host}".rstrip("/")
+
+
+# ==============================================================================
+# DATABASE & HARDWARE SYNC HELPERS
+# ==============================================================================
+def get_db() -> sqlite3.Connection:
+    db_path = get_db_path()
+    parent_dir = os.path.dirname(os.path.abspath(db_path))
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    conn = sqlite3.connect(db_path, timeout=15)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA busy_timeout=15000;")
     return conn
 
 
-def init_db(force_reset=False):
+def serialize_safety_status(row: Optional[sqlite3.Row]) -> Dict[str, Any]:
+    if not row:
+        return {
+            "level": "SAFE",
+            "headline": SAFETY_PRESETS["SAFE"]["headline"],
+            "message": SAFETY_PRESETS["SAFE"]["message"],
+            "updated_by": "Ms. Lara Marie Agustin Puertollano (Research Adviser / Lab Coordinator)",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    return {
+        "level": row["level"],
+        "headline": row["headline"],
+        "message": row["message"],
+        "updated_by": row["updated_by"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def get_current_safety_status(conn: Optional[sqlite3.Connection] = None) -> Dict[str, Any]:
+    owns_conn = conn is None
+    if conn is None:
+        conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+        return serialize_safety_status(row)
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def sync_led_from_db(*, beep_on_change: bool = False) -> Dict[str, Any]:
+    status = get_current_safety_status()
+    return led_controller.set_safety_level(status["level"], beep_on_change=beep_on_change)
+
+
+def _seed_initial_transactions(cur: sqlite3.Cursor, now_dt: datetime) -> None:
+    """Seed all 4 reference transactions (IDs 101..104) matching src/data/seedData.ts."""
+    seed_rows = [
+        (
+            101,
+            "LG-JRC-101",
+            "One Enrique Sebastian G. Abalos",
+            "AUJRC-2026-0101",
+            "STEM",
+            "one.abalos@arellano.edu.ph",
+            "General Biology 1 — Microscopy & Cell Structure",
+            "Ms. Lara Marie Agustin Puertollano",
+            json.dumps([
+                {
+                    "equipment_id": 11,
+                    "qr_code": "LG-EQ-011",
+                    "name": "Compound Light Microscope",
+                    "category": "Optical & Microscopy",
+                    "image_url": "/images/equipment/LG-EQ-011.svg",
+                    "storage_compartment": "3rd - 3rd Section",
+                    "quantity": 2,
+                    "unit": "unit",
+                    "safety_level": "SAFE",
+                    "prerequisites": [
+                        "Carry microscope with two hands (one on arm, one under base)",
+                        "Clean objective lenses with optical lens paper only",
+                    ],
+                },
+                {
+                    "equipment_id": 9,
+                    "qr_code": "LG-EQ-009",
+                    "name": "Laboratory Gown",
+                    "category": "Safety & PPE",
+                    "image_url": "/images/equipment/LG-EQ-009.svg",
+                    "storage_compartment": "1st - 3rd Section",
+                    "quantity": 2,
+                    "unit": "pc",
+                    "safety_level": "SAFE",
+                    "prerequisites": [
+                        "Button the laboratory gown completely from collar to hem before working",
+                    ],
+                },
+            ]),
+            4,
+            json.dumps([
+                "Wearing buttoned laboratory gown & closed-toe shoes",
+                "Inspected apparatus condition prior to use",
+                "Following AU-JRC Science Laboratory safety rules",
+            ]),
+            (now_dt - timedelta(hours=1.2)).isoformat(),
+            (now_dt + timedelta(hours=1.8)).isoformat(),
+            None,
+            None,
+            "",
+            "Borrowed / In Lab",
+        ),
+        (
+            102,
+            "LG-JRC-102",
+            "Christine S. Contreras",
+            "AUJRC-2026-0102",
+            "STEM",
+            "christine.contreras@arellano.edu.ph",
+            "General Chemistry 2 — Acid-Base Titration Lab",
+            "Ms. Lara Marie Agustin Puertollano",
+            json.dumps([
+                {
+                    "equipment_id": 1,
+                    "qr_code": "LG-EQ-001",
+                    "name": "Beaker",
+                    "category": "Glassware & Measuring",
+                    "image_url": "/images/equipment/LG-EQ-001.svg",
+                    "storage_compartment": "1st - 1st Section",
+                    "quantity": 2,
+                    "unit": "pc",
+                    "safety_level": "SAFE",
+                    "prerequisites": [
+                        "Inspect glassware for chips or hairline cracks before pouring liquids",
+                    ],
+                },
+                {
+                    "equipment_id": 5,
+                    "qr_code": "LG-EQ-005",
+                    "name": "Erlenmeyer Flask",
+                    "category": "Glassware & Measuring",
+                    "image_url": "/images/equipment/LG-EQ-005.svg",
+                    "storage_compartment": "1st - 2nd Section",
+                    "quantity": 2,
+                    "unit": "pc",
+                    "safety_level": "SAFE",
+                    "prerequisites": [
+                        "Swirl gently by holding the narrow neck to mix reagents without spilling",
+                    ],
+                },
+                {
+                    "equipment_id": 7,
+                    "qr_code": "LG-EQ-007",
+                    "name": "Tripod Stand",
+                    "category": "Heating & Thermal",
+                    "image_url": "/images/equipment/LG-EQ-007.svg",
+                    "storage_compartment": "3rd - 2nd Section",
+                    "quantity": 1,
+                    "unit": "unit",
+                    "safety_level": "CAUTION",
+                    "prerequisites": [
+                        "Allow iron frame to cool completely before returning to 3rd - 2nd Section",
+                    ],
+                },
+            ]),
+            5,
+            json.dumps([
+                "Wearing buttoned laboratory gown & chemical splash goggles",
+                "Inspected glassware and stand stability",
+                "Supervising Science Teacher present in laboratory",
+            ]),
+            (now_dt - timedelta(hours=0.8)).isoformat(),
+            (now_dt + timedelta(hours=2.2)).isoformat(),
+            None,
+            None,
+            "",
+            "Borrowed / In Lab",
+        ),
+        (
+            103,
+            "LG-JRC-103",
+            "Queen Hannah A. Dones",
+            "AUJRC-2026-0103",
+            "HUMSS",
+            "queenhannah.dones@arellano.edu.ph",
+            "General Science — Liquid Measurement & PPE Prep",
+            "Ms. Lara Marie Agustin Puertollano",
+            json.dumps([
+                {
+                    "equipment_id": 2,
+                    "qr_code": "LG-EQ-002",
+                    "name": "Graduated Cylinder",
+                    "category": "Glassware & Measuring",
+                    "image_url": "/images/equipment/LG-EQ-002.svg",
+                    "storage_compartment": "2nd - 1st Section",
+                    "quantity": 1,
+                    "unit": "pc",
+                    "safety_level": "SAFE",
+                    "prerequisites": [
+                        "Place on a level laboratory bench and read the bottom of the meniscus at eye level",
+                    ],
+                },
+                {
+                    "equipment_id": 10,
+                    "qr_code": "LG-EQ-010",
+                    "name": "Stirring Rod & PPE Kit (Glasses, Facemask, Gloves)",
+                    "category": "Safety & PPE",
+                    "image_url": "/images/equipment/LG-EQ-010.svg",
+                    "storage_compartment": "2nd - 3rd Section",
+                    "quantity": 1,
+                    "unit": "kit",
+                    "safety_level": "SAFE",
+                    "prerequisites": [
+                        "Put on PPE glasses, facemask, and gloves before handling any chemicals",
+                    ],
+                },
+            ]),
+            2,
+            json.dumps([
+                "Wearing buttoned laboratory gown & closed-toe shoes",
+                "Inspected apparatus condition prior to use",
+            ]),
+            (now_dt - timedelta(hours=4.5)).isoformat(),
+            (now_dt - timedelta(hours=0.5)).isoformat(),
+            None,
+            None,
+            "",
+            "Overdue",
+        ),
+        (
+            104,
+            "LG-JRC-104",
+            "Collin Lenard M. Marcos",
+            "AUJRC-2026-0104",
+            "ABM",
+            "collin.marcos@arellano.edu.ph",
+            "General Chemistry 1 — Filtration & Solution Mixing",
+            "Ms. Lara Marie Agustin Puertollano",
+            json.dumps([
+                {
+                    "equipment_id": 4,
+                    "qr_code": "LG-EQ-004",
+                    "name": "Glass Funnel",
+                    "category": "Glassware & Measuring",
+                    "image_url": "/images/equipment/LG-EQ-004.svg",
+                    "storage_compartment": "4th - 1st Section",
+                    "quantity": 2,
+                    "unit": "pc",
+                    "safety_level": "SAFE",
+                    "prerequisites": [
+                        "Wash and dry after reagent transfer before returning to 4th - 1st Section",
+                    ],
+                },
+            ]),
+            2,
+            json.dumps([
+                "Wearing buttoned laboratory gown & closed-toe shoes",
+                "Inspected apparatus condition prior to use",
+            ]),
+            (now_dt - timedelta(hours=6)).isoformat(),
+            (now_dt - timedelta(hours=4)).isoformat(),
+            (now_dt - timedelta(hours=4.2)).isoformat(),
+            "Good",
+            "Returned clean and dry in 4th - 1st Section.",
+            "Returned / Logged Out",
+        ),
+    ]
+
+    cur.executemany(
+        """
+        INSERT INTO student_transactions (
+            id, transaction_code, student_name, student_id_lrn, grade_section,
+            school_email, subject_activity, teacher_name, items_json,
+            total_items_count, safety_checked_json, time_in, expected_return,
+            time_out, return_condition, return_notes, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        seed_rows,
+    )
+
+
+def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
+    global _db_initialized_path
     conn = get_db()
     cur = conn.cursor()
 
@@ -406,7 +804,8 @@ def init_db(force_reset=False):
         """
     )
 
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    now_iso = now_dt.isoformat()
 
     cur.execute("SELECT COUNT(*) FROM equipment")
     if cur.fetchone()[0] == 0:
@@ -427,7 +826,7 @@ def init_db(force_reset=False):
         cur.execute(
             """
             INSERT INTO safety_status (id, level, headline, message, updated_by, updated_at)
-            VALUES (1, 'SAFE', ?, ?, 'Ms. Lara Marie Agustin Puertollano (Research Adviser)', ?)
+            VALUES (1, 'SAFE', ?, ?, 'Ms. Lara Marie Agustin Puertollano (Research Adviser / Lab Coordinator)', ?)
             """,
             (
                 SAFETY_PRESETS["SAFE"]["headline"],
@@ -438,49 +837,130 @@ def init_db(force_reset=False):
 
     cur.execute("SELECT COUNT(*) FROM student_transactions")
     if cur.fetchone()[0] == 0:
-        t1_in = (datetime.now(timezone.utc) - timedelta(hours=1, minutes=15)).isoformat()
-        t1_exp = (datetime.now(timezone.utc) + timedelta(hours=1, minutes=45)).isoformat()
-        cur.execute(
-            """
-            INSERT INTO student_transactions (
-                id, transaction_code, student_name, student_id_lrn, grade_section,
-                school_email, subject_activity, teacher_name, items_json,
-                total_items_count, safety_checked_json, time_in, expected_return,
-                time_out, return_condition, return_notes, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, '', 'Borrowed / In Lab')
-            """,
-            (
-                101,
-                "LG-JRC-101",
-                "One Enrique Sebastian G. Abalos",
-                "AUJRC-2026-0101",
-                "STEM",
-                "one.abalos@arellano.edu.ph",
-                "General Biology 1 — Microscopy & Cell Structure",
-                "Ms. Lara Marie Agustin Puertollano",
-                json.dumps([
-                    {
-                        "equipment_id": 11,
-                        "qr_code": "LG-EQ-011",
-                        "name": "Compound Light Microscope",
-                        "category": "Optical & Microscopy",
-                        "image_url": "/images/equipment/LG-EQ-011.svg",
-                        "storage_compartment": "3rd - 3rd Section",
-                        "quantity": 2,
-                        "unit": "unit",
-                        "safety_level": "SAFE",
-                        "prerequisites": ["Carry microscope with two hands"],
-                    }
-                ]),
-                2,
-                json.dumps(["Wearing buttoned laboratory gown & closed-toe shoes"]),
-                t1_in,
-                t1_exp,
-            ),
-        )
+        _seed_initial_transactions(cur, now_dt)
 
     conn.commit()
+    safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
     conn.close()
+
+    _db_initialized_path = get_db_path()
+    safety_level = safety_row["level"] if safety_row else "SAFE"
+    led_controller.set_safety_level(safety_level, beep_on_change=beep_on_sync)
+
+
+def ensure_db_initialized() -> None:
+    current_path = get_db_path()
+    if _db_initialized_path == current_path and os.path.exists(current_path):
+        return
+    with _db_init_lock:
+        if _db_initialized_path != current_path or not os.path.exists(current_path):
+            init_db(force_reset=False, beep_on_sync=False)
+
+
+@app.before_request
+def _before_request_init() -> None:
+    ensure_db_initialized()
+
+
+# ==============================================================================
+# WEBSOCKET BROADCAST HELPERS & CHANNELS
+# ==============================================================================
+def broadcast_global_update(payload: Dict[str, Any]) -> None:
+    message = json.dumps(payload)
+    with _ws_lock:
+        clients = list(_global_ws_clients)
+    dead = []
+    for ws in clients:
+        try:
+            ws.send(message)
+        except Exception:
+            dead.append(ws)
+    if dead:
+        with _ws_lock:
+            for ws in dead:
+                _global_ws_clients.discard(ws)
+
+
+def broadcast_checkout_update(token: str, payload: Dict[str, Any]) -> None:
+    message = json.dumps(payload)
+    with _ws_lock:
+        clients = list(_checkout_ws_clients.get(token, ()))
+    dead = []
+    for ws in clients:
+        try:
+            ws.send(message)
+        except Exception:
+            dead.append(ws)
+    if dead:
+        with _ws_lock:
+            bucket = _checkout_ws_clients.get(token)
+            if bucket is not None:
+                for ws in dead:
+                    bucket.discard(ws)
+                if not bucket:
+                    _checkout_ws_clients.pop(token, None)
+
+
+def _handle_global_ws(ws: Any) -> None:
+    ensure_db_initialized()
+    with _ws_lock:
+        _global_ws_clients.add(ws)
+    try:
+        ws.send(
+            json.dumps({
+                "event": "state_sync",
+                "safety_status": get_current_safety_status(),
+                "hardware": led_controller.get_status(),
+            })
+        )
+        while True:
+            data = ws.receive()
+            if data is None:
+                break
+    except Exception:
+        pass
+    finally:
+        with _ws_lock:
+            _global_ws_clients.discard(ws)
+
+
+def _handle_checkout_ws(ws: Any, token: str) -> None:
+    ensure_db_initialized()
+    token = token.strip()
+    with _ws_lock:
+        _checkout_ws_clients.setdefault(token, set()).add(ws)
+    try:
+        while True:
+            data = ws.receive()
+            if data is None:
+                break
+    except Exception:
+        pass
+    finally:
+        with _ws_lock:
+            bucket = _checkout_ws_clients.get(token)
+            if bucket is not None:
+                bucket.discard(ws)
+                if not bucket:
+                    _checkout_ws_clients.pop(token, None)
+
+
+if sock is not None:
+    @sock.route("/ws/kiosk")
+    def ws_kiosk(ws):
+        _handle_global_ws(ws)
+
+    @sock.route("/ws/hardware")
+    def ws_hardware(ws):
+        _handle_global_ws(ws)
+
+    @sock.route("/ws/checkout/<token>")
+    def ws_checkout(ws, token: str):
+        _handle_checkout_ws(ws, token)
+else:
+    logger.warning(
+        "flask-sock is not installed; WebSocket endpoints (/ws/*) disabled (clients will use polling fallback)."
+    )
 
 
 def make_qr_data_url(url_text: str) -> str:
@@ -497,36 +977,52 @@ def make_qr_data_url(url_text: str) -> str:
 
 
 # ==============================================================================
-# 3 SEPARATE HTML TEMPLATE ROUTES (/kiosk, /student/checkout/<token>, /admin)
+# 3 SEPARATE HTML TEMPLATE ROUTES + STATIC ASSETS
 # ==============================================================================
 @app.route("/")
 @app.route("/kiosk")
+@app.route("/kiosk.html")
 def kiosk_page():
     """Serves File 1: Student-only Inventory & Basket Kiosk UI (templates/kiosk.html)."""
     return render_template("kiosk.html")
 
 
 @app.route("/student/checkout/<token>")
-def student_form_page(token: str):
+@app.route("/student_form.html")
+def student_form_page(token: str = ""):
     """Serves File 2: QR-Redirected Student Information Form (templates/student_form.html)."""
     return render_template("student_form.html", session_token=token)
 
 
 @app.route("/admin")
+@app.route("/admin.html")
 def admin_dashboard_page():
     """Serves File 3: Admin & Lab Personnel Dashboard (templates/admin.html)."""
     return render_template("admin.html")
 
 
-@app.route("/images/equipment/<path:filename>")
-def serve_equipment_image(filename: str):
-    return send_from_directory(os.path.join(PUBLIC_DIR, "images", "equipment"), filename)
+@app.route("/images/<path:filename>")
+def serve_public_images(filename: str):
+    """Serves public/images/* including au_seal.jpg and equipment/*.svg."""
+    return send_from_directory(os.path.join(PUBLIC_DIR, "images"), filename)
+
+
+@app.route("/css/<path:filename>")
+def serve_public_css(filename: str):
+    """Serves offline compiled CSS assets from public/css/*."""
+    return send_from_directory(os.path.join(PUBLIC_DIR, "css"), filename)
+
+
+@app.route("/assets/<path:filename>")
+def serve_public_assets(filename: str):
+    """Serves additional static assets from public/assets/*."""
+    return send_from_directory(os.path.join(PUBLIC_DIR, "assets"), filename)
 
 
 # ==============================================================================
-# REST API ENDPOINTS (SQLite3)
+# REST API ENDPOINTS (SQLite3 + GPIO + WebSockets)
 # ==============================================================================
-def serialize_equipment(row) -> dict:
+def serialize_equipment(row: sqlite3.Row) -> Dict[str, Any]:
     return {
         "id": row["id"],
         "qr_code": row["qr_code"],
@@ -546,7 +1042,7 @@ def serialize_equipment(row) -> dict:
     }
 
 
-def serialize_transaction(row) -> dict:
+def serialize_transaction(row: sqlite3.Row) -> Dict[str, Any]:
     return {
         "id": row["id"],
         "transaction_code": row["transaction_code"],
@@ -568,18 +1064,46 @@ def serialize_transaction(row) -> dict:
     }
 
 
+@app.route("/api/health", methods=["GET"])
+def api_health():
+    base_url = resolve_public_base_url(request)
+    return jsonify({
+        "status": "ok",
+        "system": "LabGuard+",
+        "runtime": "python-flask",
+        "lan_url": base_url,
+        "kiosk_url": f"{base_url}/kiosk",
+        "admin_url": f"{base_url}/admin",
+        "hardware": led_controller.get_status(),
+        "db_path": get_db_path(),
+    })
+
+
+@app.route("/api/hardware/status", methods=["GET"])
+def api_hardware_status():
+    base_url = resolve_public_base_url(request)
+    return jsonify({
+        "hardware": led_controller.get_status(),
+        "lan_url": base_url,
+        "kiosk_url": f"{base_url}/kiosk",
+        "admin_url": f"{base_url}/admin",
+    })
+
+
 @app.route("/api/state", methods=["GET"])
 def api_state():
     conn = get_db()
-    eq_rows = conn.execute("SELECT * FROM equipment WHERE is_active = 1 ORDER BY id ASC").fetchall()
-    tx_rows = conn.execute("SELECT * FROM student_transactions ORDER BY id DESC").fetchall()
-    safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
-    conn.close()
+    try:
+        eq_rows = conn.execute("SELECT * FROM equipment WHERE is_active = 1 ORDER BY id ASC").fetchall()
+        tx_rows = conn.execute("SELECT * FROM student_transactions ORDER BY id DESC").fetchall()
+        safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+    finally:
+        conn.close()
 
     return jsonify({
         "equipment": [serialize_equipment(r) for r in eq_rows],
         "transactions": [serialize_transaction(r) for r in tx_rows],
-        "safety_status": dict(safety_row) if safety_row else SAFETY_PRESETS["SAFE"],
+        "safety_status": serialize_safety_status(safety_row),
         "student_presets": STUDENT_PRESETS,
     })
 
@@ -592,83 +1116,85 @@ def api_create_checkout_session():
         return jsonify({"error": "Please pick at least one equipment item into your basket."}), 400
 
     conn = get_db()
-    safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
-    if safety_row and safety_row["level"] == "UNSAFE":
+    try:
+        safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+        if safety_row and safety_row["level"] == "UNSAFE":
+            return jsonify({"error": "Laboratory LED Safety Status is RED (UNSAFE). Equipment checkout is paused."}), 403
+
+        validated = []
+        for item in raw_items:
+            eq = conn.execute(
+                "SELECT * FROM equipment WHERE id = ? AND is_active = 1",
+                (int(item.get("equipment_id", 0)),),
+            ).fetchone()
+            if not eq:
+                return jsonify({"error": "Equipment item not found."}), 404
+            qty = max(1, int(item.get("quantity", 1)))
+            if qty > eq["available_qty"]:
+                return jsonify({"error": f"Insufficient stock for {eq['name']}."}), 400
+            validated.append({
+                "equipment_id": eq["id"],
+                "qr_code": eq["qr_code"],
+                "name": eq["name"],
+                "category": eq["category"],
+                "image_url": eq["image_url"],
+                "storage_compartment": eq["storage_compartment"],
+                "quantity": qty,
+                "unit": eq["unit"],
+                "safety_level": eq["safety_level"],
+                "prerequisites": json.loads(eq["prerequisites_json"] or "[]"),
+            })
+
+        token = "CHK-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(minutes=15)
+
+        base_url = resolve_public_base_url(request)
+        mobile_url = f"{base_url}/student/checkout/{token}"
+        qr_data_url = make_qr_data_url(mobile_url)
+
+        session_obj = {
+            "session_token": token,
+            "basket_items": validated,
+            "qr_data_url": qr_data_url,
+            "mobile_url": mobile_url,
+            "status": "pending_student_info",
+            "created_at": now.isoformat(),
+            "expires_at": expires.isoformat(),
+        }
+
+        conn.execute(
+            """
+            INSERT INTO checkout_sessions (
+                session_token, basket_json, qr_data_url, mobile_url, status, created_at, expires_at
+            ) VALUES (?, ?, ?, ?, 'pending_student_info', ?, ?)
+            """,
+            (
+                token,
+                json.dumps(validated),
+                qr_data_url,
+                mobile_url,
+                now.isoformat(),
+                expires.isoformat(),
+            ),
+        )
+        conn.commit()
+    finally:
         conn.close()
-        return jsonify({"error": "Laboratory LED Safety Status is RED (UNSAFE). Equipment checkout is paused."}), 403
 
-    validated = []
-    for item in raw_items:
-        eq = conn.execute(
-            "SELECT * FROM equipment WHERE id = ? AND is_active = 1",
-            (int(item.get("equipment_id", 0)),),
-        ).fetchone()
-        if not eq:
-            conn.close()
-            return jsonify({"error": "Equipment item not found."}), 404
-        qty = max(1, int(item.get("quantity", 1)))
-        if qty > eq["available_qty"]:
-            conn.close()
-            return jsonify({"error": f"Insufficient stock for {eq['name']}."}), 400
-        validated.append({
-            "equipment_id": eq["id"],
-            "qr_code": eq["qr_code"],
-            "name": eq["name"],
-            "category": eq["category"],
-            "image_url": eq["image_url"],
-            "storage_compartment": eq["storage_compartment"],
-            "quantity": qty,
-            "unit": eq["unit"],
-            "safety_level": eq["safety_level"],
-            "prerequisites": json.loads(eq["prerequisites_json"] or "[]"),
-        })
-
-    token = "CHK-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
-    now = datetime.now(timezone.utc)
-    expires = now + timedelta(minutes=15)
-
-    host_url = request.host_url.rstrip("/")
-    mobile_url = f"{host_url}/student/checkout/{token}"
-    qr_data_url = make_qr_data_url(mobile_url)
-
-    session_obj = {
-        "session_token": token,
-        "basket_items": validated,
-        "qr_data_url": qr_data_url,
-        "mobile_url": mobile_url,
-        "status": "pending_student_info",
-        "created_at": now.isoformat(),
-        "expires_at": expires.isoformat(),
-    }
-
-    conn.execute(
-        """
-        INSERT INTO checkout_sessions (
-            session_token, basket_json, qr_data_url, mobile_url, status, created_at, expires_at
-        ) VALUES (?, ?, ?, ?, 'pending_student_info', ?, ?)
-        """,
-        (
-            token,
-            json.dumps(validated),
-            qr_data_url,
-            mobile_url,
-            now.isoformat(),
-            expires.isoformat(),
-        ),
-    )
-    conn.commit()
-    conn.close()
     return jsonify({"session": session_obj}), 201
 
 
 @app.route("/api/kiosk/checkout-session/<token>", methods=["GET"])
 def api_get_checkout_session(token: str):
     conn = get_db()
-    row = conn.execute(
-        "SELECT * FROM checkout_sessions WHERE session_token = ?", (token,)
-    ).fetchone()
-    safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
-    conn.close()
+    try:
+        row = conn.execute(
+            "SELECT * FROM checkout_sessions WHERE session_token = ?", (token,)
+        ).fetchone()
+        safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+    finally:
+        conn.close()
 
     if not row:
         return jsonify({"error": "Checkout QR session not found or expired."}), 404
@@ -689,7 +1215,7 @@ def api_get_checkout_session(token: str):
             "expires_at": row["expires_at"],
             "completed_transaction": completed_tx,
         },
-        "safety_status": dict(safety_row) if safety_row else SAFETY_PRESETS["SAFE"],
+        "safety_status": serialize_safety_status(safety_row),
         "student_presets": STUDENT_PRESETS,
     })
 
@@ -698,190 +1224,270 @@ def api_get_checkout_session(token: str):
 def api_complete_checkout_session(token: str):
     data = request.get_json(silent=True) or {}
     conn = get_db()
-    sess_row = conn.execute(
-        "SELECT * FROM checkout_sessions WHERE session_token = ?", (token,)
-    ).fetchone()
-
-    if sess_row and sess_row["status"] == "completed" and sess_row["completed_transaction_json"]:
-        conn.close()
-        return jsonify({
-            "success": True,
-            "transaction": json.loads(sess_row["completed_transaction_json"]),
-        })
-
-    basket_items = (
-        json.loads(sess_row["basket_json"])
-        if sess_row
-        else (data.get("basket_items") or [])
-    )
-    if not basket_items:
-        conn.close()
-        return jsonify({"error": "No equipment items found in checkout session."}), 400
-
-    student_name = str(data.get("student_name") or "").strip()
-    student_id_lrn = str(data.get("student_id_lrn") or "").strip()
-    grade_section = str(data.get("grade_section") or "").strip()
-    school_email = str(data.get("school_email") or "").strip().lower()
-    subject_activity = str(data.get("subject_activity") or "").strip()
-    teacher_name = str(data.get("teacher_name") or "").strip()
-    expected_hours = float(data.get("expected_return_hours") or 2)
-    safety_checked = data.get("safety_prerequisites_checked") or [
-        "Wearing buttoned laboratory gown & PPE",
-        "Inspected apparatus condition prior to use",
-    ]
-
-    if not (student_name and student_id_lrn and grade_section and subject_activity and teacher_name):
-        conn.close()
-        return jsonify({"error": "Please complete all required student information fields."}), 400
-
-    total_units = 0
-    has_caution = False
-    for item in basket_items:
-        eq = conn.execute(
-            "SELECT * FROM equipment WHERE id = ?", (int(item["equipment_id"]),)
+    try:
+        sess_row = conn.execute(
+            "SELECT * FROM checkout_sessions WHERE session_token = ?", (token,)
         ).fetchone()
-        qty = int(item["quantity"])
-        if not eq or eq["available_qty"] < qty:
-            conn.close()
-            return jsonify({"error": f"Insufficient stock for {item['name']}."}), 400
-        conn.execute(
-            "UPDATE equipment SET available_qty = available_qty - ? WHERE id = ?",
-            (qty, eq["id"]),
+
+        if sess_row and sess_row["status"] == "completed" and sess_row["completed_transaction_json"]:
+            return jsonify({
+                "success": True,
+                "transaction": json.loads(sess_row["completed_transaction_json"]),
+            })
+
+        basket_items = (
+            json.loads(sess_row["basket_json"])
+            if sess_row
+            else (data.get("basket_items") or [])
         )
-        total_units += qty
-        if eq["safety_level"] == "CAUTION":
-            has_caution = True
+        if not basket_items:
+            return jsonify({"error": "No equipment items found in checkout session."}), 400
 
-    max_id_row = conn.execute("SELECT MAX(id) FROM student_transactions").fetchone()
-    next_id = max(100, (max_id_row[0] or 100)) + 1
-    tx_code = f"LG-JRC-{next_id}"
-    now_iso = datetime.now(timezone.utc).isoformat()
-    exp_iso = (datetime.now(timezone.utc) + timedelta(hours=max(0.5, expected_hours))).isoformat()
+        student_name = str(data.get("student_name") or "").strip()
+        student_id_lrn = str(data.get("student_id_lrn") or "").strip()
+        grade_section = str(data.get("grade_section") or "").strip()
+        school_email = str(data.get("school_email") or "").strip().lower()
+        subject_activity = str(data.get("subject_activity") or "").strip()
+        teacher_name = str(data.get("teacher_name") or "").strip()
+        expected_hours = float(data.get("expected_return_hours") or 2)
+        raw_checked = data.get("safety_prerequisites_checked")
+        safety_checked = (
+            [str(x) for x in raw_checked if x]
+            if isinstance(raw_checked, list) and len(raw_checked) > 0
+            else [
+                "Wearing buttoned laboratory gown & PPE",
+                "Inspected apparatus condition prior to use",
+                "Following AU-JRC Science Laboratory safety rules",
+            ]
+        )
 
-    conn.execute(
-        """
-        INSERT INTO student_transactions (
-            id, transaction_code, student_name, student_id_lrn, grade_section,
-            school_email, subject_activity, teacher_name, items_json,
-            total_items_count, safety_checked_json, time_in, expected_return,
-            time_out, return_condition, return_notes, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, '', 'Borrowed / In Lab')
-        """,
-        (
-            next_id,
-            tx_code,
-            student_name,
-            student_id_lrn,
-            grade_section,
-            school_email or f"{student_id_lrn.lower()}@arellano.edu.ph",
-            subject_activity,
-            teacher_name,
-            json.dumps(basket_items),
-            total_units,
-            json.dumps(safety_checked),
-            now_iso,
-            exp_iso,
-        ),
-    )
+        if not (student_name and student_id_lrn and grade_section and subject_activity and teacher_name):
+            return jsonify({"error": "Please complete all required student information fields."}), 400
 
-    if has_caution:
+        # Validate stock for all items before mutating
+        resolved_items = []
+        for item in basket_items:
+            eq = conn.execute(
+                "SELECT * FROM equipment WHERE id = ?", (int(item["equipment_id"]),)
+            ).fetchone()
+            qty = max(1, int(item.get("quantity", 1)))
+            if not eq or eq["available_qty"] < qty:
+                return jsonify({"error": f"Insufficient stock for {item.get('name', 'equipment')}."}), 400
+            resolved_items.append((eq, qty))
+
+        total_units = 0
+        has_caution = False
+        for eq, qty in resolved_items:
+            conn.execute(
+                "UPDATE equipment SET available_qty = MAX(0, available_qty - ?) WHERE id = ?",
+                (qty, eq["id"]),
+            )
+            total_units += qty
+            if eq["safety_level"] == "CAUTION":
+                has_caution = True
+
+        max_id_row = conn.execute("SELECT MAX(id) FROM student_transactions").fetchone()
+        next_id = max(100, (max_id_row[0] or 100)) + 1
+        tx_code = f"LG-JRC-{next_id}"
+        now_dt = datetime.now(timezone.utc)
+        now_iso = now_dt.isoformat()
+        exp_iso = (now_dt + timedelta(hours=max(0.5, expected_hours))).isoformat()
+
         conn.execute(
             """
-            UPDATE safety_status
-            SET level = 'CAUTION', headline = ?, message = ?, updated_by = 'LabGuard+ Auto Safety Monitor', updated_at = ?
-            WHERE id = 1 AND level = 'SAFE'
+            INSERT INTO student_transactions (
+                id, transaction_code, student_name, student_id_lrn, grade_section,
+                school_email, subject_activity, teacher_name, items_json,
+                total_items_count, safety_checked_json, time_in, expected_return,
+                time_out, return_condition, return_notes, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, '', 'Borrowed / In Lab')
             """,
             (
-                SAFETY_PRESETS["CAUTION"]["headline"],
-                f"Active checkout ({tx_code} · {student_name}) includes thermal or glassware apparatus. PPE required.",
+                next_id,
+                tx_code,
+                student_name,
+                student_id_lrn,
+                grade_section,
+                school_email or f"{student_id_lrn.lower()}@arellano.edu.ph",
+                subject_activity,
+                teacher_name,
+                json.dumps(basket_items),
+                total_units,
+                json.dumps(safety_checked),
                 now_iso,
+                exp_iso,
             ),
         )
 
-    tx_row = conn.execute("SELECT * FROM student_transactions WHERE id = ?", (next_id,)).fetchone()
-    tx_dict = serialize_transaction(tx_row)
+        prev_safety_row = conn.execute("SELECT level FROM safety_status WHERE id = 1").fetchone()
+        prev_level = prev_safety_row["level"] if prev_safety_row else "SAFE"
+
+        if has_caution:
+            conn.execute(
+                """
+                UPDATE safety_status
+                SET level = 'CAUTION', headline = ?, message = ?, updated_by = 'LabGuard+ Automated Safety Monitor', updated_at = ?
+                WHERE id = 1 AND level = 'SAFE'
+                """,
+                (
+                    SAFETY_PRESETS["CAUTION"]["headline"],
+                    f"Active checkout ({tx_code} · {student_name}) includes thermal or glassware apparatus. PPE and teacher supervision required.",
+                    now_iso,
+                ),
+            )
+
+        tx_row = conn.execute("SELECT * FROM student_transactions WHERE id = ?", (next_id,)).fetchone()
+        tx_dict = serialize_transaction(tx_row)
+
+        if sess_row:
+            conn.execute(
+                "UPDATE checkout_sessions SET status = 'completed', completed_transaction_json = ? WHERE session_token = ?",
+                (json.dumps(tx_dict), token),
+            )
+
+        conn.commit()
+        safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+        safety_dict = serialize_safety_status(safety_row)
+    finally:
+        conn.close()
+
+    if safety_dict["level"] != prev_level:
+        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=True)
+    else:
+        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=False)
+        led_controller.beep("confirm")
 
     if sess_row:
-        conn.execute(
-            "UPDATE checkout_sessions SET status = 'completed', completed_transaction_json = ? WHERE session_token = ?",
-            (json.dumps(tx_dict), token),
-        )
+        broadcast_checkout_update(token, {
+            "event": "checkout_completed",
+            "transaction": tx_dict,
+        })
 
-    conn.commit()
-    conn.close()
-    return jsonify({"success": True, "transaction": tx_dict}), 201
+    broadcast_global_update({
+        "event": "data_updated",
+        "transaction": tx_dict,
+        "safety_status": safety_dict,
+        "hardware": hw_status,
+    })
+
+    return jsonify({
+        "success": True,
+        "transaction": tx_dict,
+        "safety_status": safety_dict,
+    }), 201
 
 
 @app.route("/api/kiosk/return", methods=["POST"])
 def api_return_equipment():
     data = request.get_json(silent=True) or {}
     tx_id = int(data.get("transaction_id") or 0)
-    condition = data.get("return_condition") or "Good"
+    tx_code = str(data.get("transaction_code") or "").strip().upper()
+    raw_condition = data.get("return_condition")
+    condition = raw_condition if raw_condition in ("Damaged", "Missing") else "Good"
     notes = str(data.get("return_notes") or "").strip() or f"Returned in {condition} condition."
 
     conn = get_db()
-    row = conn.execute("SELECT * FROM student_transactions WHERE id = ?", (tx_id,)).fetchone()
-    if not row:
-        conn.close()
-        return jsonify({"error": "Transaction record not found."}), 404
+    try:
+        row = None
+        if tx_id:
+            row = conn.execute("SELECT * FROM student_transactions WHERE id = ?", (tx_id,)).fetchone()
+        if row is None and tx_code:
+            row = conn.execute(
+                "SELECT * FROM student_transactions WHERE UPPER(transaction_code) = ?",
+                (tx_code,),
+            ).fetchone()
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    items = json.loads(row["items_json"] or "[]")
-    if condition != "Missing":
-        for item in items:
-            conn.execute(
-                "UPDATE equipment SET available_qty = MIN(total_qty, available_qty + ?) WHERE id = ?",
-                (int(item["quantity"]), int(item["equipment_id"])),
-            )
-            if condition == "Damaged":
+        if not row:
+            return jsonify({"error": "Borrow transaction record not found."}), 404
+
+        if row["status"] == "Returned / Logged Out":
+            return jsonify({"error": "This transaction has already been returned and logged out."}), 400
+
+        resolved_tx_id = row["id"]
+        now_iso = datetime.now(timezone.utc).isoformat()
+        items = json.loads(row["items_json"] or "[]")
+
+        if condition != "Missing":
+            for item in items:
                 conn.execute(
-                    "UPDATE equipment SET condition = 'Damaged' WHERE id = ?",
-                    (int(item["equipment_id"]),),
+                    "UPDATE equipment SET available_qty = MIN(total_qty, available_qty + ?) WHERE id = ?",
+                    (int(item["quantity"]), int(item["equipment_id"])),
                 )
+                if condition == "Damaged":
+                    conn.execute(
+                        "UPDATE equipment SET condition = 'Damaged' WHERE id = ?",
+                        (int(item["equipment_id"]),),
+                    )
 
-    conn.execute(
-        """
-        UPDATE student_transactions
-        SET time_out = ?, return_condition = ?, return_notes = ?, status = 'Returned / Logged Out'
-        WHERE id = ?
-        """,
-        (now_iso, condition, notes, tx_id),
-    )
-
-    if condition in ("Damaged", "Missing"):
-        items_summary = ", ".join(f"{it.get('quantity', 1)}x {it.get('name', 'Item')}" for it in items)
-        compartments = ", ".join(sorted({it.get("storage_compartment", "") for it in items if it.get("storage_compartment")}))
-        msg = (
-            f"Damaged apparatus returned ({row['transaction_code']}: {items_summary}). Inspect {compartments or 'compartment'} before next use."
-            if condition == "Damaged"
-            else f"Missing apparatus reported on return ({row['transaction_code']}: {items_summary}). Lab Coordinator verification required for {compartments or 'compartment'}."
-        )
         conn.execute(
             """
-            UPDATE safety_status
-            SET level = CASE WHEN level = 'UNSAFE' THEN 'UNSAFE' ELSE 'CAUTION' END,
-                headline = CASE WHEN level = 'UNSAFE' THEN headline ELSE ? END,
-                message = ?,
-                updated_by = ?,
-                updated_at = ?
-            WHERE id = 1
+            UPDATE student_transactions
+            SET time_out = ?, return_condition = ?, return_notes = ?, status = 'Returned / Logged Out'
+            WHERE id = ?
             """,
-            (
-                SAFETY_PRESETS["CAUTION"]["headline"],
-                msg,
-                f"LabGuard+ Return Monitor ({condition})",
-                now_iso,
-            ),
+            (now_iso, condition, notes, resolved_tx_id),
         )
 
-    conn.commit()
-    updated = conn.execute("SELECT * FROM student_transactions WHERE id = ?", (tx_id,)).fetchone()
-    safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
-    conn.close()
+        prev_safety_row = conn.execute("SELECT level FROM safety_status WHERE id = 1").fetchone()
+        prev_level = prev_safety_row["level"] if prev_safety_row else "SAFE"
+
+        if condition in ("Damaged", "Missing"):
+            items_summary = ", ".join(
+                f"{it.get('quantity', 1)}x {it.get('name', 'Item')}" for it in items
+            )
+            compartments = ", ".join(
+                sorted({it.get("storage_compartment", "") for it in items if it.get("storage_compartment")})
+            )
+            msg = (
+                f"Damaged apparatus returned ({row['transaction_code']}: {items_summary}). Inspect {compartments or 'compartment'} before next use."
+                if condition == "Damaged"
+                else f"Missing apparatus reported on return ({row['transaction_code']}: {items_summary}). Lab Coordinator verification required for {compartments or 'compartment'}."
+            )
+            conn.execute(
+                """
+                UPDATE safety_status
+                SET level = CASE WHEN level = 'UNSAFE' THEN 'UNSAFE' ELSE 'CAUTION' END,
+                    headline = CASE WHEN level = 'UNSAFE' THEN headline ELSE ? END,
+                    message = ?,
+                    updated_by = ?,
+                    updated_at = ?
+                WHERE id = 1
+                """,
+                (
+                    SAFETY_PRESETS["CAUTION"]["headline"],
+                    msg,
+                    f"LabGuard+ Return Monitor ({condition})",
+                    now_iso,
+                ),
+            )
+
+        conn.commit()
+        updated = conn.execute(
+            "SELECT * FROM student_transactions WHERE id = ?", (resolved_tx_id,)
+        ).fetchone()
+        safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+        tx_dict = serialize_transaction(updated)
+        safety_dict = serialize_safety_status(safety_row)
+    finally:
+        conn.close()
+
+    if safety_dict["level"] != prev_level:
+        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=True)
+    else:
+        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=False)
+        led_controller.beep("caution" if condition in ("Damaged", "Missing") else "confirm")
+
+    broadcast_global_update({
+        "event": "data_updated",
+        "transaction": tx_dict,
+        "safety_status": safety_dict,
+        "hardware": hw_status,
+    })
+
     return jsonify({
         "success": True,
-        "transaction": serialize_transaction(updated),
-        "safety_status": dict(safety_row) if safety_row else SAFETY_PRESETS["SAFE"],
+        "transaction": tx_dict,
+        "safety_status": safety_dict,
     })
 
 
@@ -893,74 +1499,166 @@ def api_add_equipment():
         return jsonify({"error": "Equipment name is required."}), 400
 
     conn = get_db()
-    max_id = conn.execute("SELECT MAX(id) FROM equipment").fetchone()[0] or 0
-    next_id = max_id + 1
-    qr_code = str(data.get("qr_code") or "").strip().upper() or f"LG-EQ-{next_id:03d}"
-    image_url = str(data.get("image_url") or "").strip() or "/images/equipment/LG-EQ-001.svg"
-    category = data.get("category") or "Glassware & Measuring"
-    compartment = str(data.get("storage_compartment") or "4th - 3rd Section").strip()
-    total_qty = max(1, int(data.get("total_qty") or 1))
-    unit = str(data.get("unit") or "unit").strip()
-    safety_level = "CAUTION" if data.get("safety_level") == "CAUTION" else "SAFE"
-    prereqs = data.get("prerequisites") or ["Wear buttoned laboratory gown and follow AU-JRC safety rules"]
+    try:
+        max_id = conn.execute("SELECT MAX(id) FROM equipment").fetchone()[0] or 0
+        next_id = max_id + 1
+        qr_code = str(data.get("qr_code") or "").strip().upper() or f"LG-EQ-{next_id:03d}"
+        image_url = str(data.get("image_url") or "").strip() or "/images/equipment/LG-EQ-001.svg"
+        category = data.get("category") or "Glassware & Measuring"
+        description = (
+            str(data.get("description") or "").strip()
+            or f"{name} for AU-JRC Senior High School Science Laboratory."
+        )
+        compartment = str(data.get("storage_compartment") or "4th - 3rd Section").strip()
+        total_qty = max(1, int(data.get("total_qty") or 1))
+        unit = str(data.get("unit") or "unit").strip()
+        safety_level = "CAUTION" if data.get("safety_level") == "CAUTION" else "SAFE"
+        raw_prereqs = data.get("prerequisites")
+        prereqs = (
+            [str(p).strip() for p in raw_prereqs if str(p).strip()]
+            if isinstance(raw_prereqs, list) and any(str(p).strip() for p in raw_prereqs)
+            else ["Wear buttoned laboratory gown and follow AU-JRC safety rules"]
+        )
 
-    conn.execute(
-        """
-        INSERT INTO equipment (
-            id, qr_code, name, category, image_url, description,
-            storage_compartment, total_qty, available_qty, unit,
-            condition, safety_level, prerequisites_json, is_active, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Good', ?, ?, 1, ?)
-        """,
-        (
-            next_id,
-            qr_code,
-            name,
-            category,
-            image_url,
-            f"{name} registered in AU-JRC Science Laboratory.",
-            compartment,
-            total_qty,
-            total_qty,
-            unit,
-            safety_level,
-            json.dumps(prereqs),
-            datetime.now(timezone.utc).isoformat(),
-        ),
-    )
-    conn.commit()
-    row = conn.execute("SELECT * FROM equipment WHERE id = ?", (next_id,)).fetchone()
-    conn.close()
-    return jsonify({"equipment": serialize_equipment(row)}), 201
+        conn.execute(
+            """
+            INSERT INTO equipment (
+                id, qr_code, name, category, image_url, description,
+                storage_compartment, total_qty, available_qty, unit,
+                condition, safety_level, prerequisites_json, is_active, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Good', ?, ?, 1, ?)
+            """,
+            (
+                next_id,
+                qr_code,
+                name,
+                category,
+                image_url,
+                description,
+                compartment,
+                total_qty,
+                total_qty,
+                unit,
+                safety_level,
+                json.dumps(prereqs),
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM equipment WHERE id = ?", (next_id,)).fetchone()
+        safety_dict = get_current_safety_status(conn)
+        eq_dict = serialize_equipment(row)
+    finally:
+        conn.close()
+
+    broadcast_global_update({
+        "event": "data_updated",
+        "safety_status": safety_dict,
+        "hardware": led_controller.get_status(),
+    })
+
+    return jsonify({"equipment": eq_dict}), 201
 
 
 @app.route("/api/admin/equipment/<int:item_id>", methods=["PATCH", "DELETE"])
 def api_modify_equipment(item_id: int):
     conn = get_db()
-    if request.method == "DELETE":
-        conn.execute("DELETE FROM equipment WHERE id = ?", (item_id,))
-        conn.commit()
-        conn.close()
-        return jsonify({"success": True})
+    try:
+        if request.method == "DELETE":
+            conn.execute("DELETE FROM equipment WHERE id = ?", (item_id,))
+            conn.commit()
+            safety_dict = get_current_safety_status(conn)
+            conn.close()
+            broadcast_global_update({
+                "event": "data_updated",
+                "safety_status": safety_dict,
+                "hardware": led_controller.get_status(),
+            })
+            return jsonify({"success": True})
 
-    data = request.get_json(silent=True) or {}
-    row = conn.execute("SELECT * FROM equipment WHERE id = ?", (item_id,)).fetchone()
-    if not row:
-        conn.close()
-        return jsonify({"error": "Equipment not found."}), 404
+        data = request.get_json(silent=True) or {}
+        row = conn.execute("SELECT * FROM equipment WHERE id = ?", (item_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "Equipment not found."}), 404
 
-    if "total_qty" in data:
-        next_total = max(1, int(data["total_qty"]))
-        borrowed = max(0, row["total_qty"] - row["available_qty"])
-        next_avail = max(0, next_total - borrowed)
-        conn.execute(
-            "UPDATE equipment SET total_qty = ?, available_qty = ? WHERE id = ?",
-            (next_total, next_avail, item_id),
+        next_name = str(data["name"]).strip() if "name" in data and data["name"] is not None else row["name"]
+        next_category = str(data["category"]).strip() if "category" in data and data["category"] is not None else row["category"]
+        next_description = str(data["description"]).strip() if "description" in data and data["description"] is not None else row["description"]
+        next_compartment = (
+            str(data["storage_compartment"]).strip()
+            if "storage_compartment" in data and data["storage_compartment"] is not None
+            else row["storage_compartment"]
         )
-    conn.commit()
-    updated = conn.execute("SELECT * FROM equipment WHERE id = ?", (item_id,)).fetchone()
-    conn.close()
-    return jsonify({"equipment": serialize_equipment(updated)})
+        next_condition = (
+            str(data["condition"]).strip()
+            if "condition" in data and data["condition"] in ("Good", "Fair", "Damaged")
+            else row["condition"]
+        )
+        next_safety_level = (
+            data["safety_level"]
+            if "safety_level" in data and data["safety_level"] in ("SAFE", "CAUTION")
+            else row["safety_level"]
+        )
+        next_image_url = (
+            str(data["image_url"]).strip()
+            if "image_url" in data and data["image_url"] is not None
+            else row["image_url"]
+        )
+
+        next_total = row["total_qty"]
+        next_avail = row["available_qty"]
+        if "total_qty" in data and data["total_qty"] is not None:
+            next_total = max(0, int(data["total_qty"]))
+            borrowed = max(0, row["total_qty"] - row["available_qty"])
+            next_avail = max(0, next_total - borrowed)
+        if "available_qty" in data and data["available_qty"] is not None:
+            next_avail = max(0, min(next_total, int(data["available_qty"])))
+
+        if "prerequisites" in data and isinstance(data["prerequisites"], list):
+            next_prereqs_json = json.dumps(
+                [str(p).strip() for p in data["prerequisites"] if str(p).strip()]
+            )
+        else:
+            next_prereqs_json = row["prerequisites_json"]
+
+        conn.execute(
+            """
+            UPDATE equipment
+            SET name = ?, category = ?, description = ?, storage_compartment = ?,
+                condition = ?, safety_level = ?, total_qty = ?, available_qty = ?,
+                prerequisites_json = ?, image_url = ?
+            WHERE id = ?
+            """,
+            (
+                next_name,
+                next_category,
+                next_description,
+                next_compartment,
+                next_condition,
+                next_safety_level,
+                next_total,
+                next_avail,
+                next_prereqs_json,
+                next_image_url,
+                item_id,
+            ),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM equipment WHERE id = ?", (item_id,)).fetchone()
+        safety_dict = get_current_safety_status(conn)
+        eq_dict = serialize_equipment(updated)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    broadcast_global_update({
+        "event": "data_updated",
+        "safety_status": safety_dict,
+        "hardware": led_controller.get_status(),
+    })
+    return jsonify({"equipment": eq_dict})
 
 
 @app.route("/api/admin/safety-status", methods=["POST"])
@@ -969,34 +1667,58 @@ def api_update_safety_status():
     level = data.get("level") if data.get("level") in ("SAFE", "CAUTION", "UNSAFE") else "SAFE"
     preset = SAFETY_PRESETS[level]
     message = str(data.get("message") or "").strip() or preset["message"]
-    updated_by = str(data.get("updated_by") or "").strip() or "AU-JRC Laboratory Personnel"
+    updated_by = str(data.get("updated_by") or "").strip() or "AU-JRC Science Laboratory Personnel"
     now_iso = datetime.now(timezone.utc).isoformat()
 
     conn = get_db()
-    conn.execute(
-        """
-        UPDATE safety_status
-        SET level = ?, headline = ?, message = ?, updated_by = ?, updated_at = ?
-        WHERE id = 1
-        """,
-        (level, preset["headline"], message, updated_by, now_iso),
-    )
-    conn.commit()
-    row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
-    conn.close()
-    return jsonify({"safety_status": dict(row)})
+    try:
+        conn.execute(
+            """
+            UPDATE safety_status
+            SET level = ?, headline = ?, message = ?, updated_by = ?, updated_at = ?
+            WHERE id = 1
+            """,
+            (level, preset["headline"], message, updated_by, now_iso),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
+        safety_dict = serialize_safety_status(row)
+    finally:
+        conn.close()
+
+    hw_status = led_controller.set_safety_level(level, beep_on_change=True)
+
+    broadcast_global_update({
+        "event": "data_updated",
+        "safety_status": safety_dict,
+        "hardware": hw_status,
+    })
+
+    return jsonify({"safety_status": safety_dict})
 
 
 @app.route("/api/reset", methods=["POST"])
 def api_reset():
-    init_db(force_reset=True)
+    init_db(force_reset=True, beep_on_sync=True)
+    safety_dict = get_current_safety_status()
+    broadcast_global_update({
+        "event": "data_updated",
+        "safety_status": safety_dict,
+        "hardware": led_controller.get_status(),
+    })
     return jsonify({"success": True})
 
 
 if __name__ == "__main__":
-    init_db()
-    port = int(os.environ.get("FLASK_PORT", 5000))
+    init_db(force_reset=False, beep_on_sync=False)
+    port = get_server_port()
+    base_url = resolve_public_base_url(None)
+    hw = led_controller.get_status()
     print(f"LabGuard+ Python Flask Server running on http://0.0.0.0:{port}")
-    print(f"  -> Student Kiosk UI:    http://localhost:{port}/kiosk")
-    print(f"  -> Admin Dashboard UI:  http://localhost:{port}/admin")
-    app.run(host="0.0.0.0", port=port, debug=False)
+    print(f"  -> LAN Base URL:        {base_url}")
+    print(f"  -> Student Kiosk UI:    {base_url}/kiosk")
+    print(f"  -> Admin Dashboard UI:  {base_url}/admin")
+    print(f"  -> SQLite Database:     {get_db_path()}")
+    print(f"  -> Hardware LED Mode:   {hw['hardware_mode']} ({hw['note']})")
+    print(f"  -> WebSockets:          {'enabled (flask-sock)' if sock is not None else 'disabled (polling fallback)'}")
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

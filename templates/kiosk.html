@@ -4,26 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>LabGuard+ — Arellano University Jose Rizal Campus</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="stylesheet" href="/css/labguard.css" />
     <style>
       body {
-        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        font-family: 'DM Sans', 'DejaVu Sans', system-ui, sans-serif;
         background-color: #f8fafc;
         color: #0f172a;
         user-select: none;
         -webkit-tap-highlight-color: transparent;
       }
       h1, h2, h3, h4, .font-heading {
-        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        font-family: 'Plus Jakarta Sans', 'DejaVu Sans', system-ui, -apple-system, sans-serif;
       }
       .font-mono {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'JetBrains Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
         font-variant-numeric: tabular-nums;
       }
       .tabular-nums {
@@ -274,14 +268,14 @@
     <!-- =================================================================== -->
     <!-- 7" LCD SIMULATION STAGE                                             -->
     <!-- =================================================================== -->
-    <div id="simulator-stage" class="flex-1 flex flex-col items-center justify-center w-full">
-      <div id="rpi-bezel-frame" class="w-full flex flex-col items-center justify-center">
+    <div id="simulator-stage" class="flex-1 min-h-0 min-w-0 flex flex-col items-center justify-center w-full max-w-full">
+      <div id="rpi-bezel-frame" class="w-full max-w-full min-h-0 min-w-0 flex-1 flex flex-col items-center justify-center">
         <!-- =========================================================== -->
         <!-- THE LIVE KIOSK.HTML SCREEN (800x480 IN SIMULATOR)           -->
         <!-- =========================================================== -->
         <div
           id="kiosk-lcd-viewport"
-          class="w-full min-h-screen flex flex-col bg-[#F8FAFC] text-slate-900 relative overflow-hidden"
+          class="w-full max-w-full min-h-screen flex flex-col bg-[#F8FAFC] text-slate-900 relative overflow-hidden"
         >
           <!-- ========================================================= -->
           <!-- SCREEN 0: ATTRACT / START SCREEN (AU SEAL + TAP ANYWHERE) -->
@@ -828,6 +822,11 @@
                 </div>
               </div>
 
+              <p
+                id="qr-modal-url"
+                class="hidden text-[10px] font-mono text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-center truncate"
+              ></p>
+
               <div class="pt-1.5 border-t border-slate-100">
                 <a
                   id="qr-redirect-link"
@@ -903,8 +902,51 @@
               </div>
             </form>
           </div>
+
+          <!-- ========================================================= -->
+          <!-- CELEBRATORY CHECKOUT CONFIRMED BANNER / TOAST             -->
+          <!-- ========================================================= -->
+          <div
+            id="checkout-confirmed-toast"
+            class="hidden absolute top-14 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md bg-emerald-600 text-white border-2 border-emerald-300 rounded-2xl px-4 py-3 shadow-2xl flex items-center justify-between gap-3 animate-modal-pop"
+          >
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-full bg-white text-emerald-600 flex items-center justify-center shrink-0 shadow-sm animate-check-pop">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <p id="checkout-toast-title" class="text-xs sm:text-sm font-heading font-extrabold tracking-tight truncate">
+                  Checkout Confirmed
+                </p>
+                <p id="checkout-toast-sub" class="text-[11px] text-emerald-100 font-mono truncate">
+                  Inventory updated · Equipment pass issued
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onclick="hideCheckoutConfirmedToast()"
+              class="px-2 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-bold cursor-pointer shrink-0"
+              aria-label="Dismiss notification"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       </div>
+    </div>
+
+    <!-- Discreet Prototype Route Helper (Hidden in real Raspberry Pi / Kiosk mode) -->
+    <div id="proto-route-helper" class="fixed bottom-3 right-3 z-50 bg-slate-900/95 text-white border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg flex items-center gap-2.5">
+      <span class="font-mono text-[11px] text-slate-400">Preview Routes:</span>
+      <a href="/kiosk" class="font-semibold text-[#F5A623] underline">kiosk.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/checkout/DEMO-QR" class="font-medium text-white hover:text-[#F5A623] underline">student_form.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/admin" class="font-medium text-white hover:text-[#F5A623] underline">admin.html</a>
+      <button type="button" onclick="document.getElementById('proto-route-helper').remove()" class="ml-1 text-slate-400 hover:text-white cursor-pointer" title="Hide helper">✕</button>
     </div>
 
     <script>
@@ -1090,17 +1132,57 @@
         }
       }
 
+      function detectKioskMode() {
+        return (
+          new URLSearchParams(window.location.search).get('kiosk') === '1' ||
+          window.matchMedia('(display-mode: fullscreen)').matches ||
+          (window.innerWidth <= 900 && window.innerHeight <= 560)
+        );
+      }
+
       function checkNativeRpiDimensions() {
-        if (simulatorEnabled) return;
+        const isKioskMode = detectKioskMode();
+        const toolbar = document.getElementById('simulator-toolbar');
+        const routeHelper = document.getElementById('proto-route-helper');
+        const body = document.getElementById('page-body');
         const viewport = document.getElementById('kiosk-lcd-viewport');
-        if (!viewport) return;
-        if (window.innerWidth <= 900 || window.innerHeight <= 560) {
-          viewport.classList.add('rpi-lcd-active');
+
+        if (isKioskMode) {
+          if (toolbar) toolbar.classList.add('hidden');
+          if (routeHelper) routeHelper.classList.add('hidden');
         } else {
-          viewport.classList.remove('rpi-lcd-active');
+          if (toolbar) toolbar.classList.remove('hidden');
+          if (routeHelper) routeHelper.classList.remove('hidden');
+        }
+
+        if (simulatorEnabled) return;
+        if (!viewport) return;
+
+        if (isKioskMode || window.innerWidth <= 900 || window.innerHeight <= 560) {
+          viewport.classList.add('rpi-lcd-active', 'h-screen', 'w-screen', 'overflow-hidden');
+          viewport.classList.remove('min-h-screen', 'overflow-x-hidden');
+          if (body) {
+            body.classList.add('h-screen', 'w-screen', 'overflow-hidden');
+            body.classList.remove('min-h-screen');
+          }
+        } else {
+          viewport.classList.remove('rpi-lcd-active', 'h-screen', 'w-screen', 'overflow-hidden');
+          viewport.classList.add('min-h-screen', 'overflow-x-hidden');
+          if (body) {
+            body.classList.remove('h-screen', 'w-screen', 'overflow-hidden');
+            body.classList.add('min-h-screen');
+          }
         }
       }
       window.addEventListener('resize', checkNativeRpiDimensions);
+      try {
+        const fsMedia = window.matchMedia('(display-mode: fullscreen)');
+        if (fsMedia && typeof fsMedia.addEventListener === 'function') {
+          fsMedia.addEventListener('change', checkNativeRpiDimensions);
+        }
+      } catch {
+        // ignore older browser matchMedia listener limitations
+      }
 
       // Category Sidebar Toggle
       function toggleCategorySidebar(forceState) {
@@ -1330,7 +1412,7 @@
       }
 
       function animateBasketAddition() {
-        const basketBtn = document.getElementById('kiosk-basket-btn');
+        const basketBtn = document.getElementById('single-basket-btn');
         const basketPill = document.getElementById('top-basket-count-pill');
         [basketBtn, basketPill].forEach((el) => {
           if (el) {
@@ -1523,6 +1605,124 @@
         toggleBasketPopup('collapse');
       }
 
+      let activeCheckoutToken = null;
+      let checkoutSessionWs = null;
+      let checkoutPollTimer = null;
+      let checkoutCompletedHandled = false;
+      let checkoutToastTimer = null;
+
+      function showCheckoutConfirmedToast(tx) {
+        const toast = document.getElementById('checkout-confirmed-toast');
+        const title = document.getElementById('checkout-toast-title');
+        const sub = document.getElementById('checkout-toast-sub');
+        if (!toast) return;
+
+        const txCode = tx && tx.transaction_code ? tx.transaction_code : 'PASS ISSUED';
+        if (title) title.textContent = `Checkout Confirmed — ${txCode}`;
+        if (sub) {
+          const masked = tx && tx.student_name ? maskStudentName(tx.student_name) : 'Student';
+          const units =
+            tx && Array.isArray(tx.items)
+              ? tx.items.reduce((s, i) => s + (i.quantity || 1), 0)
+              : 0;
+          sub.textContent =
+            units > 0
+              ? `${masked} · ${units} item${units === 1 ? '' : 's'} checked out`
+              : `${masked} · Inventory updated`;
+        }
+
+        toast.classList.remove('hidden');
+        if (checkoutToastTimer) clearTimeout(checkoutToastTimer);
+        checkoutToastTimer = setTimeout(hideCheckoutConfirmedToast, 6500);
+      }
+
+      function hideCheckoutConfirmedToast() {
+        const toast = document.getElementById('checkout-confirmed-toast');
+        if (toast) toast.classList.add('hidden');
+        if (checkoutToastTimer) {
+          clearTimeout(checkoutToastTimer);
+          checkoutToastTimer = null;
+        }
+      }
+
+      function cleanupCheckoutSessionWatchers() {
+        activeCheckoutToken = null;
+        if (checkoutPollTimer) {
+          clearInterval(checkoutPollTimer);
+          checkoutPollTimer = null;
+        }
+        if (checkoutSessionWs) {
+          try {
+            checkoutSessionWs.onmessage = null;
+            checkoutSessionWs.onerror = null;
+            checkoutSessionWs.onclose = null;
+            checkoutSessionWs.close();
+          } catch {
+            // ignore close errors
+          }
+          checkoutSessionWs = null;
+        }
+      }
+
+      function handleCheckoutSessionCompleted(tx) {
+        if (checkoutCompletedHandled) return;
+        checkoutCompletedHandled = true;
+        closeQrModal();
+        clearBasket();
+        fetchKioskState();
+        resetIdleTimer();
+        showCheckoutConfirmedToast(tx);
+      }
+
+      function watchCheckoutSession(sessionToken) {
+        cleanupCheckoutSessionWatchers();
+        if (!sessionToken) return;
+        activeCheckoutToken = sessionToken;
+        checkoutCompletedHandled = false;
+
+        try {
+          const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const ws = new WebSocket(`${proto}//${window.location.host}/ws/checkout/${sessionToken}`);
+          checkoutSessionWs = ws;
+          ws.onmessage = (evt) => {
+            try {
+              const payload = JSON.parse(evt.data);
+              if (
+                payload.event === 'checkout_completed' ||
+                (payload.session && payload.session.status === 'completed')
+              ) {
+                const tx =
+                  payload.transaction ||
+                  (payload.session && payload.session.completed_transaction) ||
+                  null;
+                handleCheckoutSessionCompleted(tx);
+              }
+            } catch {
+              // ignore malformed messages
+            }
+          };
+          ws.onerror = () => {
+            // 3-second polling fallback handles completion when WS fails
+          };
+        } catch {
+          // fallback to polling below
+        }
+
+        checkoutPollTimer = setInterval(async () => {
+          if (checkoutCompletedHandled || activeCheckoutToken !== sessionToken) return;
+          try {
+            const pollRes = await fetch(`/api/kiosk/checkout-session/${sessionToken}`);
+            if (!pollRes.ok) return;
+            const pollData = await pollRes.json();
+            if (pollData.session && pollData.session.status === 'completed') {
+              handleCheckoutSessionCompleted(pollData.session.completed_transaction || null);
+            }
+          } catch {
+            // ignore transient polling errors
+          }
+        }, 3000);
+      }
+
       async function createCheckoutQrSession() {
         if (basket.length === 0) return;
         const errBox = document.getElementById('checkout-error-box');
@@ -1545,6 +1745,14 @@
           document.getElementById('qr-modal-token').textContent = `Token: ${sess.session_token}`;
           document.getElementById('qr-redirect-link').href = `/student/checkout/${sess.session_token}`;
 
+          const qrUrlEl = document.getElementById('qr-modal-url');
+          const displayUrl =
+            sess.mobile_url || `${window.location.origin}/student/checkout/${sess.session_token}`;
+          if (qrUrlEl) {
+            qrUrlEl.textContent = `Scan QR or visit: ${displayUrl}`;
+            qrUrlEl.classList.remove('hidden');
+          }
+
           document.getElementById('qr-modal-usage-list').innerHTML = basket
             .map(
               (item) => `
@@ -1557,6 +1765,7 @@
             .join('');
 
           document.getElementById('qr-checkout-modal').classList.remove('hidden');
+          watchCheckoutSession(sess.session_token);
         } catch (err) {
           errBox.textContent = 'Network error while generating Checkout QR session.';
           errBox.classList.remove('hidden');
@@ -1564,6 +1773,7 @@
       }
 
       function closeQrModal() {
+        cleanupCheckoutSessionWatchers();
         document.getElementById('qr-checkout-modal').classList.add('hidden');
       }
 
@@ -1767,10 +1977,45 @@
         }
       }
 
+      let globalKioskWs = null;
+      let globalKioskWsConnected = false;
+      let globalKioskPollTimer = null;
+      let globalKioskReconnectTimer = null;
+
+      function startGlobalKioskFallbackPoll() {
+        if (globalKioskPollTimer) return;
+        globalKioskPollTimer = setInterval(() => {
+          if (!globalKioskWsConnected) {
+            fetchKioskState();
+          }
+        }, 10000);
+      }
+
+      function stopGlobalKioskFallbackPoll() {
+        if (globalKioskPollTimer) {
+          clearInterval(globalKioskPollTimer);
+          globalKioskPollTimer = null;
+        }
+      }
+
+      function scheduleGlobalKioskReconnect() {
+        if (globalKioskReconnectTimer) clearTimeout(globalKioskReconnectTimer);
+        globalKioskReconnectTimer = setTimeout(() => {
+          globalKioskReconnectTimer = null;
+          connectGlobalKioskSocket();
+        }, 4000);
+      }
+
       function connectGlobalKioskSocket() {
         try {
           const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
           const ws = new WebSocket(`${proto}//${window.location.host}/ws/kiosk`);
+          globalKioskWs = ws;
+
+          ws.onopen = () => {
+            globalKioskWsConnected = true;
+            stopGlobalKioskFallbackPoll();
+          };
           ws.onmessage = (evt) => {
             try {
               const payload = JSON.parse(evt.data);
@@ -1785,11 +2030,19 @@
               // ignore malformed messages
             }
           };
+          ws.onerror = () => {
+            globalKioskWsConnected = false;
+            startGlobalKioskFallbackPoll();
+          };
           ws.onclose = () => {
-            setTimeout(connectGlobalKioskSocket, 4000);
+            globalKioskWsConnected = false;
+            startGlobalKioskFallbackPoll();
+            scheduleGlobalKioskReconnect();
           };
         } catch {
-          // fallback if WebSocket unavailable
+          globalKioskWsConnected = false;
+          startGlobalKioskFallbackPoll();
+          scheduleGlobalKioskReconnect();
         }
       }
 
@@ -1798,16 +2051,5 @@
       connectGlobalKioskSocket();
       startIdleTracker();
     </script>
-
-    <!-- Discreet Prototype Route Helper -->
-    <div id="proto-route-helper" class="fixed bottom-3 right-3 z-50 bg-slate-900/95 text-white border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg flex items-center gap-2.5">
-      <span class="font-mono text-[11px] text-slate-400">Preview Routes:</span>
-      <a href="/kiosk" class="font-semibold text-[#F5A623] underline">kiosk.html</a>
-      <span class="text-slate-600">·</span>
-      <a href="/student/checkout/DEMO-QR" class="font-medium text-white hover:text-[#F5A623] underline">student_form.html</a>
-      <span class="text-slate-600">·</span>
-      <a href="/admin" class="font-medium text-white hover:text-[#F5A623] underline">admin.html</a>
-      <button type="button" onclick="document.getElementById('proto-route-helper').remove()" class="ml-1 text-slate-400 hover:text-white cursor-pointer" title="Hide helper">✕</button>
-    </div>
   </body>
 </html>

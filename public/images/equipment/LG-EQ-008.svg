@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none">
+    <rect width="240" height="160" rx="12" fill="#F8FAFC"/>
+    <ellipse cx="120" cy="142" rx="64" ry="7" fill="#CBD5E1"/>
+    <!-- Base Plate -->
+    <rect x="66" y="124" width="108" height="12" rx="4" fill="#1E293B"/>
+    <!-- Top Glass Knob -->
+    <circle cx="120" cy="24" r="9" fill="#BAE6FD" stroke="#003087" stroke-width="3"/>
+    <!-- Bell Dome -->
+    <path d="M76 124V76C76 50 95 33 120 33C145 33 164 50 164 76V124H76Z" fill="#E0F2FE" fill-opacity="0.7" stroke="#003087" stroke-width="3.5"/>
+    <!-- Glass Shine -->
+    <path d="M90 74C90 56 100 45 112 43" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+    <rect x="72" y="118" width="96" height="6" rx="2" fill="#003087"/>
+  </svg>

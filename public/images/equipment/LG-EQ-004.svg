@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none">
+    <rect width="240" height="160" rx="12" fill="#F8FAFC"/>
+    <ellipse cx="120" cy="142" rx="46" ry="6" fill="#CBD5E1"/>
+    <!-- Conical Funnel & Stem -->
+    <path d="M62 34H178L128 92V132L112 138V92L62 34Z" fill="#E0F2FE" stroke="#003087" stroke-width="3.5" stroke-linejoin="round"/>
+    <ellipse cx="120" cy="34" rx="58" ry="8" fill="#BAE6FD" stroke="#003087" stroke-width="3"/>
+    <!-- Filter paper line inside -->
+    <path d="M74 36L120 84L166 36" stroke="#FFFFFF" stroke-width="2.5" stroke-dasharray="4 3"/>
+    <line x1="120" y1="92" x2="120" y2="128" stroke="#38BDF8" stroke-width="4" stroke-linecap="round"/>
+  </svg>

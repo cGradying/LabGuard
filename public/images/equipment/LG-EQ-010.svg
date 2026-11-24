@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none">
+    <rect width="240" height="160" rx="12" fill="#F8FAFC"/>
+    <!-- PPE Safety Glasses -->
+    <rect x="44" y="28" width="96" height="34" rx="12" fill="#E0F2FE" stroke="#003087" stroke-width="3"/>
+    <rect x="54" y="36" width="32" height="18" rx="6" fill="#38BDF8" fill-opacity="0.45"/>
+    <rect x="98" y="36" width="32" height="18" rx="6" fill="#38BDF8" fill-opacity="0.45"/>
+    <!-- Facemask -->
+    <rect x="48" y="82" width="88" height="44" rx="10" fill="#BAE6FD" stroke="#0284C7" stroke-width="3"/>
+    <line x1="58" y1="96" x2="126" y2="96" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="58" y1="110" x2="126" y2="110" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Nitrile Glove -->
+    <path d="M158 76V52C158 48 164 48 164 52V74H168V46C168 42 174 42 174 46V74H178V50C178 46 184 46 184 50V76H188V60C188 56 194 56 194 60V98C194 114 182 126 172 126H160C152 126 146 118 146 106V88C146 82 152 76 158 76Z" fill="#A7F3D0" stroke="#16A34A" stroke-width="2.5"/>
+    <!-- Glass Stirring Rod -->
+    <line x1="164" y1="22" x2="206" y2="54" stroke="#003087" stroke-width="5" stroke-linecap="round"/>
+    <line x1="164" y1="22" x2="206" y2="54" stroke="#BAE6FD" stroke-width="2" stroke-linecap="round"/>
+  </svg>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none">
+    <rect width="240" height="160" rx="12" fill="#F8FAFC"/>
+    <ellipse cx="120" cy="144" rx="58" ry="6" fill="#CBD5E1"/>
+    <!-- Sleeves & Coat Body -->
+    <path d="M96 24L60 44L46 98L66 104L78 66V138H162V66L174 104L194 98L180 44L144 24H96Z" fill="#FFFFFF" stroke="#003087" stroke-width="3.5" stroke-linejoin="round"/>
+    <!-- Collar & Center Seam -->
+    <path d="M96 24L120 56L144 24" fill="#E0F2FE" stroke="#003087" stroke-width="3" stroke-linejoin="round"/>
+    <line x1="120" y1="56" x2="120" y2="138" stroke="#94A3B8" stroke-width="2"/>
+    <!-- Buttons -->
+    <circle cx="120" cy="72" r="2.5" fill="#003087"/>
+    <circle cx="120" cy="90" r="2.5" fill="#003087"/>
+    <circle cx="120" cy="108" r="2.5" fill="#003087"/>
+    <!-- Pockets & AU Crest -->
+    <rect x="88" y="96" width="20" height="22" rx="3" fill="#F1F5F9" stroke="#64748B" stroke-width="2"/>
+    <rect x="132" y="96" width="20" height="22" rx="3" fill="#F1F5F9" stroke="#64748B" stroke-width="2"/>
+    <circle cx="142" cy="64" r="7" fill="#C8102E"/>
+  </svg>

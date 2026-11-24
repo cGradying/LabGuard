@@ -7,6 +7,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import QRCode from 'qrcode';
+import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import {
@@ -85,6 +86,104 @@ function generateSessionToken(): string {
   return result;
 }
 
+function detectLanIp(): string | null {
+  const interfaces = os.networkInterfaces();
+  let fallbackIp: string | null = null;
+
+  for (const entries of Object.values(interfaces)) {
+    if (!entries) continue;
+    for (const entry of entries) {
+      if (entry.internal || entry.family !== 'IPv4') continue;
+      const addr = entry.address;
+      if (!addr || addr.startsWith('127.') || addr === '0.0.0.0') continue;
+      if (addr.startsWith('169.254.')) {
+        if (!fallbackIp) fallbackIp = addr;
+        continue;
+      }
+      // Prefer RFC1918 private LAN addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+      if (
+        addr.startsWith('192.168.') ||
+        addr.startsWith('10.') ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(addr)
+      ) {
+        return addr;
+      }
+      if (!fallbackIp) fallbackIp = addr;
+    }
+  }
+
+  return fallbackIp;
+}
+
+function resolvePublicBaseUrl(req?: express.Request): string {
+  const envUrl = (process.env.APP_URL || process.env.LABGUARD_PUBLIC_URL || '')
+    .trim()
+    .replace(/\/$/, '');
+  if (envUrl) {
+    return envUrl;
+  }
+
+  if (!req) {
+    const lanIp = detectLanIp() || '127.0.0.1';
+    return `http://${lanIp}:${PORT}`;
+  }
+
+  const forwardedProtoHeader = req.headers['x-forwarded-proto'];
+  const forwardedProto = Array.isArray(forwardedProtoHeader)
+    ? forwardedProtoHeader[0]
+    : forwardedProtoHeader?.split(',')[0]?.trim();
+  const protocol = forwardedProto || req.protocol || 'http';
+
+  const forwardedHostHeader = req.headers['x-forwarded-host'];
+  const forwardedHost = Array.isArray(forwardedHostHeader)
+    ? forwardedHostHeader[0]
+    : forwardedHostHeader?.split(',')[0]?.trim();
+  const rawHost = forwardedHost || req.headers.host || `localhost:${PORT}`;
+
+  try {
+    const parsed = new URL(`${protocol}://${rawHost}`);
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '::1' ||
+      hostname === '[::1]'
+    ) {
+      const lanIp = detectLanIp();
+      if (lanIp) {
+        return `${protocol}://${lanIp}${parsed.port ? `:${parsed.port}` : ''}`;
+      }
+    }
+  } catch {
+    // Fall through to rawHost
+  }
+
+  return `${protocol}://${rawHost}`.replace(/\/$/, '');
+}
+
+function getHardwareStatus() {
+  return {
+    hardware_mode: 'simulation',
+    is_raspberry_pi: false,
+    gpio_active: false,
+    active_high: true,
+    current_level: safetyStatus.level,
+    led_state: {
+      green: safetyStatus.level === 'SAFE',
+      yellow: safetyStatus.level === 'CAUTION',
+      red: safetyStatus.level === 'UNSAFE',
+    },
+    pins: {
+      green: 17,
+      yellow: 27,
+      red: 22,
+      buzzer: 23,
+    },
+    note: 'Node.js Express runtime — LED status running in simulation mode (use Python Flask app.py for Raspberry Pi GPIO).',
+  };
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '5mb' }));
@@ -114,6 +213,7 @@ async function startServer() {
           JSON.stringify({
             event: 'state_sync',
             safety_status: safetyStatus,
+            hardware: getHardwareStatus(),
           })
         );
         ws.on('close', () => {
@@ -126,8 +226,12 @@ async function startServer() {
   });
 
   // ============================================================================
-  // Equipment SVG Image Route (/images/equipment/:filename)
+  // Static Public Assets (/images/au_seal.jpg, /css/labguard.css, /images/equipment/*.svg)
+  // Always mounted BEFORE Vite/production fallback so assets work in dev AND prod
   // ============================================================================
+  app.use(express.static(path.resolve(process.cwd(), 'public')));
+
+  // Fallback Equipment SVG Image Route (/images/equipment/:filename)
   app.get('/images/equipment/:filename', (req, res) => {
     const code = req.params.filename.replace(/\.svg$/i, '').toUpperCase();
     const svg = EQUIPMENT_SVG_MAP[code] || EQUIPMENT_SVG_MAP['LG-EQ-002'];
@@ -153,8 +257,31 @@ async function startServer() {
   });
 
   // ============================================================================
-  // Unified State & Kiosk / Admin API Endpoints
+  // Health, Hardware Status & Unified State / Kiosk / Admin API Endpoints
   // ============================================================================
+  app.get('/api/health', (req, res) => {
+    const baseUrl = resolvePublicBaseUrl(req);
+    res.json({
+      status: 'ok',
+      system: 'LabGuard+',
+      runtime: 'node-express',
+      lan_url: baseUrl,
+      kiosk_url: `${baseUrl}/kiosk`,
+      admin_url: `${baseUrl}/admin`,
+      hardware: getHardwareStatus(),
+    });
+  });
+
+  app.get('/api/hardware/status', (req, res) => {
+    const baseUrl = resolvePublicBaseUrl(req);
+    res.json({
+      hardware: getHardwareStatus(),
+      lan_url: baseUrl,
+      kiosk_url: `${baseUrl}/kiosk`,
+      admin_url: `${baseUrl}/admin`,
+    });
+  });
+
   app.get('/api/state', (_req, res) => {
     res.json({
       equipment: equipmentList,
@@ -214,11 +341,7 @@ async function startServer() {
       const createdAt = new Date();
       const expiresAt = new Date(createdAt.getTime() + 15 * 60 * 1000);
 
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-      const host = req.headers.host || `localhost:${PORT}`;
-      const baseUrl = process.env.APP_URL
-        ? process.env.APP_URL.replace(/\/$/, '')
-        : `${protocol}://${host}`;
+      const baseUrl = resolvePublicBaseUrl(req);
       const mobileUrl = `${baseUrl}/student/checkout/${token}`;
 
       const qrDataUrl = await QRCode.toDataURL(mobileUrl, {
@@ -384,6 +507,7 @@ async function startServer() {
       event: 'data_updated',
       transaction: newTransaction,
       safety_status: safetyStatus,
+      hardware: getHardwareStatus(),
     });
 
     res.status(201).json({
@@ -459,6 +583,7 @@ async function startServer() {
       event: 'data_updated',
       transaction: record,
       safety_status: safetyStatus,
+      hardware: getHardwareStatus(),
     });
 
     res.json({
@@ -509,7 +634,11 @@ async function startServer() {
     };
 
     equipmentList.push(newItem);
-    broadcastGlobalUpdate({ event: 'data_updated' });
+    broadcastGlobalUpdate({
+      event: 'data_updated',
+      safety_status: safetyStatus,
+      hardware: getHardwareStatus(),
+    });
     res.status(201).json({ equipment: newItem });
   });
 
@@ -528,6 +657,7 @@ async function startServer() {
       eq.storage_compartment = String(req.body.storage_compartment).trim();
     if (req.body?.condition !== undefined) eq.condition = req.body.condition;
     if (req.body?.safety_level !== undefined) eq.safety_level = req.body.safety_level;
+    if (req.body?.image_url !== undefined) eq.image_url = String(req.body.image_url).trim();
     if (req.body?.total_qty !== undefined) {
       const nextTotal = Math.max(0, Number(req.body.total_qty));
       const borrowedCount = Math.max(0, eq.total_qty - eq.available_qty);
@@ -541,14 +671,22 @@ async function startServer() {
       eq.prerequisites = req.body.prerequisites.filter(Boolean);
     }
 
-    broadcastGlobalUpdate({ event: 'data_updated' });
+    broadcastGlobalUpdate({
+      event: 'data_updated',
+      safety_status: safetyStatus,
+      hardware: getHardwareStatus(),
+    });
     res.json({ equipment: eq });
   });
 
   app.delete('/api/admin/equipment/:id', (req, res) => {
     const id = Number(req.params.id);
     equipmentList = equipmentList.filter((e) => e.id !== id);
-    broadcastGlobalUpdate({ event: 'data_updated' });
+    broadcastGlobalUpdate({
+      event: 'data_updated',
+      safety_status: safetyStatus,
+      hardware: getHardwareStatus(),
+    });
     res.json({ success: true });
   });
 
@@ -571,6 +709,7 @@ async function startServer() {
     broadcastGlobalUpdate({
       event: 'data_updated',
       safety_status: safetyStatus,
+      hardware: getHardwareStatus(),
     });
 
     res.json({ safety_status: safetyStatus });
@@ -581,7 +720,11 @@ async function startServer() {
     transactionLogs = structuredClone(INITIAL_TRANSACTIONS);
     safetyStatus = structuredClone(INITIAL_SAFETY_STATUS);
     checkoutSessions.clear();
-    broadcastGlobalUpdate({ event: 'data_updated', safety_status: safetyStatus });
+    broadcastGlobalUpdate({
+      event: 'data_updated',
+      safety_status: safetyStatus,
+      hardware: getHardwareStatus(),
+    });
     res.json({ success: true });
   });
 
@@ -602,7 +745,11 @@ async function startServer() {
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
+    const baseUrl = resolvePublicBaseUrl();
     console.log(`LabGuard+ Kiosk Server running on http://0.0.0.0:${PORT}`);
+    console.log(`  -> LAN Base URL:        ${baseUrl}`);
+    console.log(`  -> Student Kiosk UI:    ${baseUrl}/kiosk`);
+    console.log(`  -> Admin Dashboard UI:  ${baseUrl}/admin`);
   });
 }
 
