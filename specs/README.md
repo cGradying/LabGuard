@@ -31,8 +31,8 @@ Each spec is implemented on its own git branch (`spec/0X-...`), verified against
 | :--- | :--- | :--- | :--- | :--- |
 | **[SPEC-01](./01-student-registration-and-admin-approval.md)** | Student Registration, School ID Photo Upload & Admin Approval | `spec/01-student-registration-approval` | Base (`main`) | `MERGED` |
 | **[SPEC-02](./02-verified-checkout-account-and-instructions.md)** | Verified Student Checkout, Account Portal & Post-Checkout Item Instructions | `spec/02-verified-checkout-instructions` | `SPEC-01` | `MERGED` |
-| **[SPEC-03](./03-verified-equipment-return.md)** | Second-Verification Authenticated Equipment Return | `spec/03-verified-equipment-return` | `SPEC-01`, `SPEC-02` | `IN PROGRESS` |
-| **[SPEC-04](./04-raspberry-pi-2-3-gpio-locker-manager.md)** | Raspberry Pi 2/3 12-Channel Locker GPIO & Technical Admin Hardware UI | `spec/04-pi-2-3-gpio-locker-manager` | `SPEC-01`–`SPEC-03` | `DRAFT` |
+| **[SPEC-03](./03-verified-equipment-return.md)** | Second-Verification Authenticated Equipment Return | `spec/03-verified-equipment-return` | `SPEC-01`, `SPEC-02` | `MERGED` |
+| **[SPEC-04](./04-raspberry-pi-2-3-gpio-locker-manager.md)** | Raspberry Pi 2/3 12-Channel Locker GPIO & Technical Admin Hardware UI | `spec/04-pi-2-3-gpio-locker-manager` | `SPEC-01`–`SPEC-03` | `IN PROGRESS` |
 | **[SPEC-05](./05-pi-2-3-installer-and-beginner-readme.md)** | Raspberry Pi 2/3 Installer Tuning & Beginner Step-by-Step README | `spec/05-pi-2-3-installer-readme` | `SPEC-01`–`SPEC-04` | `DRAFT` |
 
 ---

@@ -23,6 +23,7 @@ import type {
   Equipment,
   BasketItem,
   CheckoutSession,
+  ReturnSession,
   StudentTransactionLog,
   SafetyStatusState,
   SafetyStatusLevel,
@@ -38,6 +39,7 @@ const PBKDF2_ITERATIONS = 120000;
 const MAX_ID_PHOTO_BYTES = 4 * 1024 * 1024;
 const ADMIN_SESSION_MS = 24 * 60 * 60 * 1000;
 const STUDENT_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+const RETURN_SESSION_MS = 10 * 60 * 1000;
 const VALID_GRADE_SECTIONS = new Set(['STEM', 'HUMSS', 'ABM', 'FACULTY']);
 const VALID_STUDENT_STATUSES = new Set(['pending', 'approved', 'rejected', 'suspended']);
 const IMAGE_DATA_URL_RE = /^data:image\/(jpeg|jpg|png|webp|svg\+xml);base64,([A-Za-z0-9+/=\s]+)$/i;
@@ -250,7 +252,58 @@ function enrichTransactionWithInstructions(tx: StudentTransactionLog): StudentTr
   return {
     ...tx,
     student_account_id: tx.student_account_id ?? null,
+    returned_verified_by: tx.returned_verified_by ?? null,
     items: enrichBasketItemsWithInstructions(tx.items || []),
+  };
+}
+
+function maskStudentName(fullName?: string | null): string {
+  const cleaned = String(fullName || '').trim();
+  if (!cleaned) return 'Student';
+  return cleaned
+    .split(/\s+/)
+    .map((p) => {
+      if (p.length <= 2) return p;
+      return `${p[0]}${'*'.repeat(Math.max(1, p.length - 2))}${p[p.length - 1]}`;
+    })
+    .join(' ');
+}
+
+function maskStudentId(studentId?: string | null): string {
+  const cleaned = String(studentId || '').trim();
+  if (!cleaned) return '********';
+  if (cleaned.length <= 4) return '****';
+  return `${'*'.repeat(cleaned.length - 4)}${cleaned.slice(-4)}`;
+}
+
+function isTransactionOwner(
+  tx: StudentTransactionLog,
+  studentAcc: StudentAccountRecord
+): boolean {
+  if (
+    tx.student_account_id !== null &&
+    tx.student_account_id !== undefined &&
+    tx.student_account_id === studentAcc.id
+  ) {
+    return true;
+  }
+  const txLrn = String(tx.student_id_lrn || '').trim().toUpperCase();
+  const stuLrn = String(studentAcc.student_id_lrn || '').trim().toUpperCase();
+  return Boolean(txLrn) && txLrn === stuLrn;
+}
+
+function buildTransactionPreview(tx: StudentTransactionLog) {
+  const enriched = enrichTransactionWithInstructions(tx);
+  return {
+    id: enriched.id,
+    transaction_code: enriched.transaction_code,
+    masked_student_name: maskStudentName(enriched.student_name),
+    masked_student_id: maskStudentId(enriched.student_id_lrn),
+    grade_section: enriched.grade_section,
+    time_in: enriched.time_in,
+    expected_return: enriched.expected_return,
+    items: enriched.items,
+    status: enriched.status,
   };
 }
 
@@ -259,6 +312,7 @@ let equipmentList: Equipment[] = enrichEquipmentWithImages(structuredClone(INITI
 let transactionLogs: StudentTransactionLog[] = structuredClone(INITIAL_TRANSACTIONS);
 let safetyStatus: SafetyStatusState = structuredClone(INITIAL_SAFETY_STATUS);
 const checkoutSessions: Map<string, CheckoutSession> = new Map();
+const returnSessions: Map<string, ReturnSession> = new Map();
 let studentAccounts: StudentAccountRecord[] = [];
 let nextStudentAccountId = 1;
 const studentSessions: Map<string, StudentSessionRecord> = new Map();
@@ -363,6 +417,7 @@ function linkSeededTransactionsToAccounts(): void {
     ...tx,
     student_account_id:
       tx.student_account_id ?? accByLrn.get(tx.student_id_lrn.toUpperCase()) ?? null,
+    returned_verified_by: tx.returned_verified_by ?? null,
     items: enrichBasketItemsWithInstructions(tx.items || []),
   }));
 }
@@ -490,10 +545,22 @@ function saveIdPhotoFromDataUrl(
 
 // WebSocket channels
 const checkoutSockets: Map<string, Set<WebSocket>> = new Map();
+const returnSockets: Map<string, Set<WebSocket>> = new Map();
 const globalSockets: Set<WebSocket> = new Set();
 
 function broadcastToCheckoutSession(token: string, payload: unknown) {
   const clients = checkoutSockets.get(token);
+  if (!clients) return;
+  const msg = JSON.stringify(payload);
+  for (const ws of clients) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(msg);
+    }
+  }
+}
+
+function broadcastToReturnSession(token: string, payload: unknown) {
+  const clients = returnSockets.get(token);
   if (!clients) return;
   const msg = JSON.stringify(payload);
   for (const ws of clients) {
@@ -519,6 +586,21 @@ function generateSessionToken(): string {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+}
+
+function generateReturnSessionToken(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  for (let attempt = 0; attempt < 16; attempt++) {
+    let result = 'RET-';
+    const bytes = crypto.randomBytes(8);
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(bytes[i] % chars.length);
+    }
+    if (!returnSessions.has(result)) {
+      return result;
+    }
+  }
+  return `RET-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 }
 
 function detectLanIp(): string | null {
@@ -641,6 +723,21 @@ async function startServer() {
           checkoutSockets.get(token)?.delete(ws);
         });
       });
+    } else if (pathname.startsWith('/ws/return/')) {
+      const token = pathname.replace('/ws/return/', '').trim();
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        if (!returnSockets.has(token)) {
+          returnSockets.set(token, new Set());
+        }
+        returnSockets.get(token)!.add(ws);
+        ws.on('close', () => {
+          const bucket = returnSockets.get(token);
+          bucket?.delete(ws);
+          if (bucket && bucket.size === 0) {
+            returnSockets.delete(token);
+          }
+        });
+      });
     } else if (pathname === '/ws/kiosk' || pathname === '/ws/hardware') {
       wss.handleUpgrade(request, socket, head, (ws) => {
         globalSockets.add(ws);
@@ -675,7 +772,7 @@ async function startServer() {
   });
 
   // ============================================================================
-  // HTML TEMPLATE ROUTES (/kiosk, /student/checkout/:token, /student/register, /admin)
+  // HTML TEMPLATE ROUTES (/kiosk, /student/checkout/:token, /student/return/:token, /student/register, /admin)
   // ============================================================================
   const templatesDir = path.resolve(process.cwd(), 'templates');
 
@@ -685,6 +782,10 @@ async function startServer() {
 
   app.get(['/student/checkout/:token', '/student_form.html'], (_req, res) => {
     res.sendFile(path.join(templatesDir, 'student_form.html'));
+  });
+
+  app.get(['/student/return/:token', '/student_return.html'], (_req, res) => {
+    res.sendFile(path.join(templatesDir, 'student_return.html'));
   });
 
   app.get(['/student/register', '/student_register.html'], (_req, res) => {
@@ -1517,6 +1618,7 @@ async function startServer() {
       time_out: null,
       return_condition: null,
       return_notes: '',
+      returned_verified_by: null,
       status: 'Borrowed / In Lab',
     };
 
@@ -1555,35 +1657,24 @@ async function startServer() {
     });
   });
 
-  app.post('/api/kiosk/return', (req, res) => {
-    const txId = Number(req.body?.transaction_id || 0);
-    const txCode = String(req.body?.transaction_code || '').trim().toUpperCase();
-    const condition: 'Good' | 'Damaged' | 'Missing' =
-      req.body?.return_condition === 'Damaged' || req.body?.return_condition === 'Missing'
-        ? req.body.return_condition
-        : 'Good';
-    const notes = String(req.body?.return_notes || '').trim();
+  function normalizeReturnCondition(raw: unknown): 'Good' | 'Damaged' | 'Missing' {
+    const cleaned = String(raw || 'Good').trim().toLowerCase();
+    if (cleaned === 'damaged') return 'Damaged';
+    if (cleaned === 'missing') return 'Missing';
+    return 'Good';
+  }
 
-    const record = transactionLogs.find(
-      (t) => (txId && t.id === txId) || (txCode && t.transaction_code.toUpperCase() === txCode)
-    );
-
-    if (!record) {
-      res.status(404).json({ error: 'Borrow transaction record not found.' });
-      return;
-    }
-
-    if (record.status === 'Returned / Logged Out') {
-      res
-        .status(400)
-        .json({ error: 'This transaction has already been returned and logged out.' });
-      return;
-    }
-
+  function executeTransactionReturn(
+    record: StudentTransactionLog,
+    condition: 'Good' | 'Damaged' | 'Missing',
+    notes: string,
+    verifiedBy: string
+  ): StudentTransactionLog {
     const nowIso = new Date().toISOString();
     record.time_out = nowIso;
     record.return_condition = condition;
     record.return_notes = notes || `Returned in ${condition} condition.`;
+    record.returned_verified_by = verifiedBy;
     record.status = 'Returned / Logged Out';
 
     if (condition !== 'Missing') {
@@ -1617,16 +1708,313 @@ async function startServer() {
       };
     }
 
+    return enrichTransactionWithInstructions(record);
+  }
+
+  app.post('/api/kiosk/return-session', async (req, res) => {
+    try {
+      const txId = Number(req.body?.transaction_id || 0);
+      const txCode = String(req.body?.transaction_code || '').trim().toUpperCase();
+
+      const record = transactionLogs.find(
+        (t) =>
+          (Number.isFinite(txId) && txId > 0 && t.id === txId) ||
+          (txCode && t.transaction_code.toUpperCase() === txCode)
+      );
+
+      if (!record) {
+        res.status(404).json({ error: 'Borrow transaction record not found.' });
+        return;
+      }
+
+      if (record.status === 'Returned / Logged Out') {
+        res
+          .status(400)
+          .json({ error: 'This transaction has already been returned and logged out.' });
+        return;
+      }
+
+      const enriched = enrichTransactionWithInstructions(record);
+      const token = generateReturnSessionToken();
+      const createdAt = new Date();
+      const expiresAt = new Date(createdAt.getTime() + RETURN_SESSION_MS);
+      const baseUrl = resolvePublicBaseUrl(req);
+      const mobileUrl = `${baseUrl}/student/return/${token}`;
+      const qrDataUrl = await QRCode.toDataURL(mobileUrl, {
+        width: 300,
+        margin: 1,
+        color: {
+          dark: '#003087',
+          light: '#FFFFFF',
+        },
+      });
+
+      const session: ReturnSession = {
+        session_token: token,
+        transaction_id: enriched.id,
+        qr_data_url: qrDataUrl,
+        mobile_url: mobileUrl,
+        status: 'pending_verification',
+        created_at: createdAt.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        completed_transaction: null,
+      };
+
+      returnSessions.set(token, session);
+
+      res.status(201).json({
+        session: {
+          session_token: token,
+          transaction_id: enriched.id,
+          transaction_code: enriched.transaction_code,
+          mobile_url: mobileUrl,
+          qr_data_url: qrDataUrl,
+          status: 'pending_verification',
+          created_at: session.created_at,
+          expires_at: session.expires_at,
+          items: enriched.items,
+          masked_student_name: maskStudentName(enriched.student_name),
+          masked_student_id: maskStudentId(enriched.student_id_lrn),
+        },
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.get('/api/kiosk/return-session/:token', (req, res) => {
+    const cleanToken = String(req.params.token || '').trim();
+    const session = returnSessions.get(cleanToken);
+    if (!session) {
+      res.status(404).json({ error: 'Return verification session not found.' });
+      return;
+    }
+
+    const isExpired =
+      session.status === 'expired' ||
+      (session.status === 'pending_verification' && Date.parse(session.expires_at) <= Date.now());
+    if (isExpired) {
+      session.status = 'expired';
+      res.status(410).json({
+        error:
+          'Return verification QR session has expired. Please generate a new return QR at the Kiosk.',
+        expired: true,
+        status: 'expired',
+      });
+      return;
+    }
+
+    const record = transactionLogs.find((t) => t.id === session.transaction_id);
+    if (!record) {
+      res.status(404).json({ error: 'Associated borrow transaction not found.' });
+      return;
+    }
+
+    const enriched = enrichTransactionWithInstructions(record);
+    const completedTx = session.completed_transaction
+      ? enrichTransactionWithInstructions(session.completed_transaction)
+      : session.status === 'completed'
+      ? enriched
+      : null;
+
+    const payload: Record<string, unknown> = {
+      session: {
+        session_token: session.session_token,
+        transaction_id: session.transaction_id,
+        transaction_code: enriched.transaction_code,
+        qr_data_url: session.qr_data_url,
+        mobile_url: session.mobile_url,
+        status: session.status,
+        created_at: session.created_at,
+        expires_at: session.expires_at,
+        items: enriched.items,
+        masked_student_name: maskStudentName(enriched.student_name),
+        masked_student_id: maskStudentId(enriched.student_id_lrn),
+        completed_transaction: completedTx,
+      },
+      transaction_preview: buildTransactionPreview(enriched),
+      safety_status: safetyStatus,
+    };
+
+    const auth = getAuthenticatedStudent(req);
+    if (auth && auth.account.status === 'approved') {
+      const owner = isTransactionOwner(enriched, auth.account);
+      payload.is_owner = owner;
+      payload.transaction = owner ? enriched : null;
+    }
+
+    res.json(payload);
+  });
+
+  app.post('/api/kiosk/return-session/:token/complete', (req, res) => {
+    const auth = getAuthenticatedStudent(req);
+    if (!auth) {
+      res.status(401).json({
+        error: 'Student login required to verify and complete equipment return.',
+      });
+      return;
+    }
+    const { account: studentAcc } = auth;
+    if (studentAcc.status !== 'approved') {
+      res.status(403).json({
+        error: 'Your student account is not approved for equipment return.',
+        account_status: studentAcc.status,
+        rejection_reason: studentAcc.rejection_reason || '',
+      });
+      return;
+    }
+
+    const cleanToken = String(req.params.token || '').trim();
+    const isDirect = cleanToken.toUpperCase() === 'DIRECT';
+
+    let session: ReturnSession | undefined;
+    let record: StudentTransactionLog | undefined;
+
+    if (isDirect) {
+      const txId = Number(req.body?.transaction_id || 0);
+      const txCode = String(req.body?.transaction_code || '').trim().toUpperCase();
+      record = transactionLogs.find(
+        (t) =>
+          (Number.isFinite(txId) && txId > 0 && t.id === txId) ||
+          (txCode && t.transaction_code.toUpperCase() === txCode)
+      );
+      if (!record) {
+        res.status(404).json({ error: 'Borrow transaction record not found.' });
+        return;
+      }
+    } else {
+      session = returnSessions.get(cleanToken);
+      if (!session) {
+        res.status(404).json({ error: 'Return verification session not found.' });
+        return;
+      }
+
+      if (session.status === 'completed') {
+        const completedTx =
+          session.completed_transaction ||
+          transactionLogs.find((t) => t.id === session!.transaction_id);
+        if (!completedTx) {
+          res.status(404).json({ error: 'Borrow transaction record not found.' });
+          return;
+        }
+        if (!isTransactionOwner(completedTx, studentAcc)) {
+          res.status(403).json({
+            error:
+              'Verification Failed: This borrow record belongs to a different student account. You can only return equipment borrowed under your own account.',
+            ownership_mismatch: true,
+          });
+          return;
+        }
+        res.json({
+          success: true,
+          transaction: enrichTransactionWithInstructions(completedTx),
+          safety_status: safetyStatus,
+        });
+        return;
+      }
+
+      if (session.status === 'expired' || Date.parse(session.expires_at) <= Date.now()) {
+        session.status = 'expired';
+        res.status(410).json({
+          error:
+            'Return verification QR session has expired. Please generate a new return QR at the Kiosk.',
+          expired: true,
+        });
+        return;
+      }
+
+      record = transactionLogs.find((t) => t.id === session!.transaction_id);
+      if (!record) {
+        res.status(404).json({ error: 'Borrow transaction record not found.' });
+        return;
+      }
+    }
+
+    if (!isTransactionOwner(record, studentAcc)) {
+      res.status(403).json({
+        error:
+          'Verification Failed: This borrow record belongs to a different student account. You can only return equipment borrowed under your own account.',
+        ownership_mismatch: true,
+      });
+      return;
+    }
+
+    if (record.status === 'Returned / Logged Out') {
+      res
+        .status(400)
+        .json({ error: 'This transaction has already been returned and logged out.' });
+      return;
+    }
+
+    const condition = normalizeReturnCondition(req.body?.return_condition);
+    const notes = String(req.body?.return_notes || '').trim();
+    const verifiedBy = `${studentAcc.full_name} (${studentAcc.student_id_lrn})`;
+    const updatedTx = executeTransactionReturn(record, condition, notes, verifiedBy);
+
+    if (session) {
+      session.status = 'completed';
+      session.completed_transaction = updatedTx;
+      broadcastToReturnSession(cleanToken, {
+        event: 'return_completed',
+        transaction: updatedTx,
+        safety_status: safetyStatus,
+      });
+    }
+
     broadcastGlobalUpdate({
       event: 'data_updated',
-      transaction: record,
+      transaction: updatedTx,
       safety_status: safetyStatus,
       hardware: getHardwareStatus(),
     });
 
     res.json({
       success: true,
-      transaction: record,
+      transaction: updatedTx,
+      safety_status: safetyStatus,
+    });
+  });
+
+  app.post('/api/kiosk/return', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    const txId = Number(req.body?.transaction_id || 0);
+    const txCode = String(req.body?.transaction_code || '').trim().toUpperCase();
+    const condition = normalizeReturnCondition(req.body?.return_condition);
+    const notes = String(req.body?.return_notes || '').trim();
+    const verifiedBy = `Admin: ${admin.name || admin.email || 'Administrator'}`;
+
+    const record = transactionLogs.find(
+      (t) =>
+        (Number.isFinite(txId) && txId > 0 && t.id === txId) ||
+        (txCode && t.transaction_code.toUpperCase() === txCode)
+    );
+
+    if (!record) {
+      res.status(404).json({ error: 'Borrow transaction record not found.' });
+      return;
+    }
+
+    if (record.status === 'Returned / Logged Out') {
+      res
+        .status(400)
+        .json({ error: 'This transaction has already been returned and logged out.' });
+      return;
+    }
+
+    const updatedTx = executeTransactionReturn(record, condition, notes, verifiedBy);
+
+    broadcastGlobalUpdate({
+      event: 'data_updated',
+      transaction: updatedTx,
+      safety_status: safetyStatus,
+      hardware: getHardwareStatus(),
+    });
+
+    res.json({
+      success: true,
+      transaction: updatedTx,
       safety_status: safetyStatus,
     });
   });
@@ -1820,6 +2208,7 @@ async function startServer() {
     transactionLogs = structuredClone(INITIAL_TRANSACTIONS);
     safetyStatus = structuredClone(INITIAL_SAFETY_STATUS);
     checkoutSessions.clear();
+    returnSessions.clear();
     studentSessions.clear();
     seedStudentAccounts();
     linkSeededTransactionsToAccounts();

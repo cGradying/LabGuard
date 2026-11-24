@@ -1,7 +1,7 @@
 # SPEC-03: Second-Verification Authenticated Equipment Return
 
 - **Spec ID:** `SPEC-03`
-- **Status:** `DRAFT` *(begins after SPEC-02 is merged)*
+- **Status:** `MERGED`
 - **Target Branch:** `spec/03-verified-equipment-return`
 - **Dependencies:** `SPEC-01`, `SPEC-02`
 
@@ -81,9 +81,9 @@ This spec adds **second-layer account verification for returns**:
 
 ## 6. Acceptance Criteria (Must Pass Before Merging to `main`)
 
-- [ ] Unauthenticated `POST /api/kiosk/return` returns `401`.
-- [ ] Kiosk Return button opens a Return Verification QR modal (`RET-XXXXXXXX`) with LAN URL (not `localhost`).
-- [ ] Student B logged into `/student/return/<token>` for Student A's loan sees the ownership mismatch warning AND direct API submission returns `403 { ownership_mismatch: true }`.
-- [ ] Student A logged into `/student/return/<token>` can return as `Good`, `Damaged`, or `Missing`; stock & LED `CAUTION` rules execute properly and `returned_verified_by` is logged.
-- [ ] Kiosk Return QR modal auto-closes via `/ws/return/<token>` (or polling fallback) and refreshes active loans.
-- [ ] Admin Dashboard Check-In continues working with Admin Bearer authentication.
+- [x] Unauthenticated `POST /api/kiosk/return` returns `401`.
+- [x] Kiosk Return button opens a Return Verification QR modal (`RET-XXXXXXXX`) with LAN URL (not `localhost`).
+- [x] Student B logged into `/student/return/<token>` for Student A's loan sees the ownership mismatch warning AND direct API submission returns `403 { ownership_mismatch: true }`.
+- [x] Student A logged into `/student/return/<token>` can return as `Good`, `Damaged`, or `Missing`; stock & LED `CAUTION` rules execute properly and `returned_verified_by` is logged.
+- [x] Kiosk Return QR modal auto-closes via `/ws/return/<token>` (or polling fallback) and refreshes active loans.
+- [x] Admin Dashboard Check-In continues working with Admin Bearer authentication.

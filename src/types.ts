@@ -58,6 +58,17 @@ export interface CheckoutSession {
   completed_transaction?: StudentTransactionLog;
 }
 
+export interface ReturnSession {
+  session_token: string;
+  transaction_id: number;
+  qr_data_url: string;
+  mobile_url: string;
+  status: 'pending_verification' | 'completed' | 'expired';
+  created_at: string;
+  expires_at: string;
+  completed_transaction?: StudentTransactionLog | null;
+}
+
 export type TransactionStatus = 'Borrowed / In Lab' | 'Returned / Logged Out' | 'Overdue';
 
 export interface StudentTransactionLog {
@@ -78,6 +89,7 @@ export interface StudentTransactionLog {
   time_out: string | null;
   return_condition: 'Good' | 'Damaged' | 'Missing' | null;
   return_notes: string;
+  returned_verified_by?: string | null;
   status: TransactionStatus;
 }
 

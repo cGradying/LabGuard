@@ -204,7 +204,8 @@
         padding: 0.45rem 1rem !important;
         font-size: 0.72rem !important;
       }
-      .rpi-lcd-active #register-qr-img {
+      .rpi-lcd-active #register-qr-img,
+      .rpi-lcd-active #return-qr-img {
         width: 7.5rem !important;
         height: 7.5rem !important;
       }
@@ -472,7 +473,7 @@
                     Return Equipment
                   </h2>
                   <p class="text-xs text-slate-500 max-w-xs mx-auto">
-                    Select your active borrow record and confirm returned apparatus condition.
+                    Select your active borrow record and scan the Return QR to verify your account.
                   </p>
                 </div>
 
@@ -777,6 +778,7 @@
             <!-- ======================================================= -->
             <section id="return-section" class="hidden flex-1 overflow-y-auto space-y-3 pr-1 rpi-scroll">
               <div id="return-success-banner" class="hidden p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-semibold"></div>
+              <div id="return-error-banner" class="hidden p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 font-semibold"></div>
 
               <div class="bg-white border border-slate-200 rounded-xl px-4 py-2.5 flex items-center justify-between gap-4">
                 <div>
@@ -784,10 +786,10 @@
                     Select Your Record to Return Equipment
                   </h2>
                   <p class="text-[11px] text-slate-500 font-mono">
-                    Student name & ID are privacy-masked for confidentiality
+                    Identity masked · Account login required on your phone to return your borrowed items
                   </p>
                 </div>
-                <span class="text-xs font-mono text-slate-500">
+                <span class="text-xs font-mono text-slate-500 shrink-0">
                   Active: <strong id="active-sessions-count">0</strong>
                 </span>
               </div>
@@ -861,67 +863,75 @@
           </div>
 
           <!-- ========================================================= -->
-          <!-- MODAL 2: CONFIRM EQUIPMENT RETURN                         -->
+          <!-- MODAL 2: VERIFIED EQUIPMENT RETURN QR CODE                -->
           <!-- ========================================================= -->
-          <div id="return-modal" class="hidden absolute inset-0 z-50 bg-slate-900/75 flex items-center justify-center p-3">
-            <form onsubmit="submitReturnForm(event)" class="animate-modal-pop bg-white border border-slate-200 rounded-2xl max-w-sm w-full p-4 space-y-3 shadow-2xl">
-              <div class="border-b border-slate-100 pb-2">
-                <p class="text-[10px] font-mono font-bold text-[#16A34A] uppercase">Return Equipment</p>
-                <h3 id="return-modal-title" class="text-base font-extrabold text-slate-900 font-heading mt-0.5"></h3>
-              </div>
-
-              <div id="return-modal-items" class="space-y-1 text-xs text-slate-700 font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200 max-h-24 overflow-y-auto"></div>
-
-              <div>
-                <label class="block text-xs font-bold text-slate-800 mb-1">Condition</label>
-                <div class="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    id="cond-btn-Good"
-                    onclick="selectReturnCondition('Good')"
-                    class="py-2.5 px-2 text-xs font-heading font-bold rounded-xl border-2 border-[#003087] bg-[#003087] text-white cursor-pointer"
-                  >
-                    Good
-                  </button>
-                  <button
-                    type="button"
-                    id="cond-btn-Damaged"
-                    onclick="selectReturnCondition('Damaged')"
-                    class="py-2.5 px-2 text-xs font-heading font-bold rounded-xl border-2 border-slate-200 bg-white text-slate-700 cursor-pointer"
-                  >
-                    Damaged
-                  </button>
-                  <button
-                    type="button"
-                    id="cond-btn-Missing"
-                    onclick="selectReturnCondition('Missing')"
-                    class="py-2.5 px-2 text-xs font-heading font-bold rounded-xl border-2 border-slate-200 bg-white text-slate-700 cursor-pointer"
-                  >
-                    Missing
-                  </button>
+          <div id="return-qr-modal" class="hidden absolute inset-0 z-50 bg-slate-900/75 flex items-center justify-center p-3">
+            <div class="animate-modal-pop bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-3.5 sm:p-4 space-y-2.5 shadow-2xl max-h-full overflow-y-auto rpi-scroll">
+              <div class="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                <div class="min-w-0">
+                  <h2 class="text-base sm:text-lg font-extrabold text-slate-900 font-heading leading-tight">
+                    Verify Account to Return Equipment
+                  </h2>
+                  <p id="return-qr-token" class="font-mono text-[11px] font-bold text-[#003087] mt-0.5"></p>
                 </div>
-                <div
-                  id="return-condition-alert"
-                  class="hidden mt-2 p-2.5 rounded-xl border text-[11px] font-medium leading-snug"
-                ></div>
-              </div>
-
-              <div class="pt-1 grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onclick="closeReturnModal()"
-                  class="py-2.5 px-3 text-xs font-bold text-slate-700 bg-slate-100 rounded-xl cursor-pointer"
+                  onclick="closeReturnQrModal()"
+                  class="px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer shrink-0"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  class="py-2.5 px-3 text-xs font-heading font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-xl cursor-pointer"
-                >
-                  Confirm Return
+                  Close
                 </button>
               </div>
-            </form>
+
+              <!-- Security Verification Badge -->
+              <div class="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-[11px] font-heading font-bold leading-snug">
+                🔒 Account Verification Required — Only the original borrower can return this equipment
+              </div>
+
+              <!-- Side-by-Side Return QR Code & Masked Record Details -->
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div class="sm:col-span-5 flex flex-col items-center text-center space-y-1">
+                  <div class="p-1.5 bg-white border-2 border-[#16A34A] rounded-2xl">
+                    <img
+                      id="return-qr-img"
+                      src=""
+                      alt="Return Verification QR Code"
+                      referrerpolicy="no-referrer"
+                      class="w-32 h-32 object-contain"
+                    />
+                  </div>
+                  <p id="return-qr-status" class="text-[10px] text-slate-500 font-medium">
+                    Scan with your phone camera
+                  </p>
+                </div>
+
+                <div class="sm:col-span-7 bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1.5 max-h-40 overflow-y-auto rpi-scroll">
+                  <div class="flex items-center justify-between gap-2 border-b border-slate-200/80 pb-1.5">
+                    <span id="return-qr-borrower" class="text-xs font-heading font-extrabold text-slate-900 truncate"></span>
+                    <span id="return-qr-tx-code" class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-[#003087] shrink-0"></span>
+                  </div>
+                  <p class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+                    Borrowed Items &amp; Compartments
+                  </p>
+                  <div id="return-qr-items-list" class="space-y-1 text-[11px] font-mono text-slate-700"></div>
+                </div>
+              </div>
+
+              <p
+                id="return-qr-url"
+                class="text-[10px] font-mono text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-center truncate"
+              ></p>
+
+              <div id="return-qr-desktop-wrap" class="pt-1 border-t border-slate-100">
+                <a
+                  id="return-qr-redirect-link"
+                  href="#"
+                  class="block w-full py-2 px-3 bg-[#16A34A] hover:bg-emerald-700 text-white text-xs font-heading font-bold rounded-xl text-center transition-colors"
+                >
+                  Open Mobile Return Verification →
+                </a>
+              </div>
+            </div>
           </div>
 
           <!-- ========================================================= -->
@@ -1078,8 +1088,15 @@
       let searchQuery = '';
       let basket = [];
       let currentMode = 'borrow';
-      let activeReturnTxId = null;
-      let selectedReturnCondition = 'Good';
+
+      function escapeHtml(str) {
+        return String(str === null || str === undefined ? '' : str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
 
       let isCategorySidebarOpen = false;
       let basketWindowState = 'collapse'; // 'collapse' | 'normal' | 'maximize'
@@ -1166,7 +1183,7 @@
         document.getElementById('kiosk-top-bar').classList.add('hidden');
         document.getElementById('top-mode-bar').classList.add('hidden');
         closeQrModal();
-        closeReturnModal();
+        closeReturnQrModal();
         closeRegisterQrModal();
         toggleBasketPopup('collapse');
         toggleTouchKeyboard(false);
@@ -1186,7 +1203,7 @@
         document.getElementById('kiosk-top-bar').classList.remove('hidden');
         document.getElementById('top-mode-bar').classList.add('hidden');
         closeQrModal();
-        closeReturnModal();
+        closeReturnQrModal();
         closeRegisterQrModal();
         toggleTouchKeyboard(false);
         resetIdleTimer();
@@ -1247,6 +1264,8 @@
         const toolbar = document.getElementById('simulator-toolbar');
         const routeHelper = document.getElementById('proto-route-helper');
         const regDesktopWrap = document.getElementById('register-qr-desktop-wrap');
+        const returnDesktopWrap = document.getElementById('return-qr-desktop-wrap');
+        const returnDesktopLink = document.getElementById('return-qr-redirect-link');
         const body = document.getElementById('page-body');
         const viewport = document.getElementById('kiosk-lcd-viewport');
 
@@ -1254,10 +1273,14 @@
           if (toolbar) toolbar.classList.add('hidden');
           if (routeHelper) routeHelper.classList.add('hidden');
           if (regDesktopWrap) regDesktopWrap.classList.add('hidden');
+          if (returnDesktopWrap) returnDesktopWrap.classList.add('hidden');
+          if (returnDesktopLink) returnDesktopLink.classList.add('hidden');
         } else {
           if (toolbar) toolbar.classList.remove('hidden');
           if (routeHelper) routeHelper.classList.remove('hidden');
           if (regDesktopWrap) regDesktopWrap.classList.remove('hidden');
+          if (returnDesktopWrap) returnDesktopWrap.classList.remove('hidden');
+          if (returnDesktopLink) returnDesktopLink.classList.remove('hidden');
         }
 
         if (simulatorEnabled) return;
@@ -1990,7 +2013,7 @@
                     <!-- Masked Student Name with Hold-to-Reveal Eye Toggle -->
                     <div class="flex items-center gap-1.5 min-w-0">
                       <h3 id="tx-name-${tx.id}" class="text-sm font-extrabold text-slate-900 font-heading tracking-wide truncate transition-colors">
-                        ${maskStudentName(tx.student_name)}
+                        ${escapeHtml(maskStudentName(tx.student_name))}
                       </h3>
                       <button
                         type="button"
@@ -2011,20 +2034,20 @@
                     </div>
                     <!-- Masked Student ID / LRN -->
                     <p class="text-[10px] font-mono text-slate-500 mt-0.5 truncate">
-                      ID: <span id="tx-id-${tx.id}" class="font-semibold text-slate-700 transition-colors">${maskStudentId(tx.student_id_lrn)}</span> · ${tx.grade_section}
+                      ID: <span id="tx-id-${tx.id}" class="font-semibold text-slate-700 transition-colors">${escapeHtml(maskStudentId(tx.student_id_lrn))}</span> · ${escapeHtml(tx.grade_section || '')}
                     </p>
                   </div>
                   <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-[#16A34A] border border-emerald-200 shrink-0">
-                    Active
+                    ${escapeHtml(tx.transaction_code || 'Active')}
                   </span>
                 </div>
                 <div class="mt-2 pt-2 border-t border-slate-100 space-y-0.5 text-[11px] font-mono text-slate-700">
-                  ${(tx.items || []).map((i) => `<div>• ${i.quantity}× ${i.name} (${i.storage_compartment})</div>`).join('')}
+                  ${(tx.items || []).map((i) => `<div>• ${Number(i.quantity || 1)}× ${escapeHtml(i.name)} (${escapeHtml(i.storage_compartment || '')})</div>`).join('')}
                 </div>
               </div>
               <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                 <span class="text-[10px] font-mono text-slate-400">${new Date(tx.time_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                <button type="button" onclick="openReturnModal(${tx.id})" class="px-3.5 py-2 text-[11px] font-heading font-bold text-white bg-[#16A34A] active:bg-emerald-700 rounded-xl cursor-pointer">Return Equipment</button>
+                <button type="button" onclick="openReturnQrSession(${tx.id})" class="px-3.5 py-2 text-[11px] font-heading font-bold text-white bg-[#16A34A] hover:bg-emerald-700 active:bg-emerald-800 rounded-xl cursor-pointer">Verify &amp; Return →</button>
               </div>
             </div>
           `
@@ -2032,90 +2055,220 @@
           .join('');
       }
 
-      function selectReturnCondition(cond) {
-        selectedReturnCondition = cond;
-        ['Good', 'Damaged', 'Missing'].forEach((c) => {
-          const btn = document.getElementById(`cond-btn-${c}`);
-          if (!btn) return;
-          if (c === cond) {
-            if (cond === 'Damaged') {
-              btn.className =
-                'py-2.5 px-2 text-xs font-heading font-bold rounded-xl border-2 border-amber-600 bg-amber-500 text-white cursor-pointer';
-            } else if (cond === 'Missing') {
-              btn.className =
-                'py-2.5 px-2 text-xs font-heading font-bold rounded-xl border-2 border-[#C8102E] bg-[#C8102E] text-white cursor-pointer';
-            } else {
-              btn.className =
-                'py-2.5 px-2 text-xs font-heading font-bold rounded-xl border-2 border-[#003087] bg-[#003087] text-white cursor-pointer';
-            }
-          } else {
-            btn.className =
-              'py-2.5 px-2 text-xs font-heading font-bold rounded-xl border-2 border-slate-200 bg-white text-slate-700 cursor-pointer';
-          }
-        });
+      let activeReturnToken = null;
+      let returnSessionWs = null;
+      let returnPollTimer = null;
+      let returnCompletedHandled = false;
 
-        const alertBox = document.getElementById('return-condition-alert');
-        if (alertBox) {
-          if (cond === 'Damaged') {
-            alertBox.className = 'mt-2 p-2.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-[11px] font-medium leading-snug';
-            alertBox.textContent = '⚠ Returning as Damaged will automatically switch the Station LED Safety Status to YELLOW (CAUTION) for inspection.';
-          } else if (cond === 'Missing') {
-            alertBox.className = 'mt-2 p-2.5 rounded-xl border border-red-300 bg-red-50 text-red-900 text-[11px] font-medium leading-snug';
-            alertBox.textContent = '⚠ Returning as Missing will keep stock deducted and switch the Station LED Safety Status to YELLOW (CAUTION) for Lab Coordinator review.';
-          } else {
-            alertBox.className = 'hidden mt-2 p-2.5 rounded-xl border text-[11px] font-medium leading-snug';
-            alertBox.textContent = '';
+      function cleanupReturnSessionWatchers() {
+        activeReturnToken = null;
+        if (returnPollTimer) {
+          clearInterval(returnPollTimer);
+          returnPollTimer = null;
+        }
+        if (returnSessionWs) {
+          try {
+            returnSessionWs.onmessage = null;
+            returnSessionWs.onerror = null;
+            returnSessionWs.onclose = null;
+            returnSessionWs.close();
+          } catch {
+            // ignore close errors
           }
+          returnSessionWs = null;
         }
       }
 
-      function openReturnModal(txId) {
-        const tx = transactionsList.find((t) => t.id === txId);
-        if (!tx) return;
-        activeReturnTxId = tx.id;
-        selectReturnCondition('Good');
-        document.getElementById('return-modal-title').textContent = maskStudentName(tx.student_name);
-        document.getElementById('return-modal-items').innerHTML = (tx.items || [])
-          .map((i) => `<div>• ${i.quantity}× ${i.name} (${i.storage_compartment})</div>`)
-          .join('');
-        document.getElementById('return-modal').classList.remove('hidden');
+      function closeReturnQrModal() {
+        cleanupReturnSessionWatchers();
+        const modal = document.getElementById('return-qr-modal');
+        if (modal) modal.classList.add('hidden');
       }
 
-      function closeReturnModal() {
-        activeReturnTxId = null;
-        document.getElementById('return-modal').classList.add('hidden');
+      function hideReturnSuccessBanner() {
+        const banner = document.getElementById('return-success-banner');
+        if (banner) banner.classList.add('hidden');
       }
 
-      async function submitReturnForm(e) {
-        e.preventDefault();
-        if (!activeReturnTxId) return;
-        const cond = selectedReturnCondition;
-        const res = await fetch('/api/kiosk/return', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            transaction_id: activeReturnTxId,
-            return_condition: cond,
-            return_notes: `Returned (${cond})`,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.safety_status) {
-            safetyStatus = data.safety_status;
-          }
-          closeReturnModal();
-          const banner = document.getElementById('return-success-banner');
-          if (cond === 'Damaged' || cond === 'Missing') {
-            banner.className = 'p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 font-semibold';
-            banner.textContent = `Return logged (${cond}). Station LED Safety Status updated to ${safetyStatus.level === 'UNSAFE' ? 'RED (UNSAFE)' : 'YELLOW (CAUTION)'} — Lab Coordinator notified.`;
+      function handleReturnSessionCompleted(tx, nextSafetyStatus) {
+        if (returnCompletedHandled) return;
+        returnCompletedHandled = true;
+        closeReturnQrModal();
+
+        if (nextSafetyStatus) {
+          safetyStatus = nextSafetyStatus;
+          updateHeaderAndMetrics();
+        }
+
+        const cond = (tx && tx.return_condition) || 'Good';
+        const txCode = (tx && tx.transaction_code) || 'RETURNED';
+        const verifiedBy = (tx && tx.returned_verified_by) || 'borrower';
+        const isAlert = cond === 'Damaged' || cond === 'Missing';
+
+        const banner = document.getElementById('return-success-banner');
+        if (banner) {
+          if (isAlert) {
+            banner.className =
+              'p-3 bg-amber-50 border-2 border-amber-300 rounded-xl text-xs text-amber-950 font-semibold flex items-center justify-between gap-2 animate-modal-pop';
+            const ledLabel =
+              safetyStatus.level === 'UNSAFE' ? 'RED (UNSAFE)' : 'YELLOW (CAUTION)';
+            banner.innerHTML = `
+              <span>▲ Verified Return Completed (${escapeHtml(txCode)}) — verified by ${escapeHtml(verifiedBy)} · Condition: ${escapeHtml(cond)} (LED ${ledLabel})</span>
+              <button type="button" onclick="hideReturnSuccessBanner()" class="px-2 py-0.5 rounded bg-amber-200/70 hover:bg-amber-200 text-amber-950 font-bold text-xs cursor-pointer shrink-0">✕</button>
+            `;
           } else {
-            banner.className = 'p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-semibold';
-            banner.textContent = 'Equipment returned successfully in Good condition. Transaction completed.';
+            banner.className =
+              'p-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl text-xs text-emerald-900 font-semibold flex items-center justify-between gap-2 animate-modal-pop';
+            banner.innerHTML = `
+              <span>✓ Verified Return Completed (${escapeHtml(txCode)}) — verified by ${escapeHtml(verifiedBy)}</span>
+              <button type="button" onclick="hideReturnSuccessBanner()" class="px-2 py-0.5 rounded bg-emerald-200/70 hover:bg-emerald-200 text-emerald-900 font-bold text-xs cursor-pointer shrink-0">✕</button>
+            `;
           }
           banner.classList.remove('hidden');
-          updateHeaderAndMetrics();
-          fetchKioskState();
+        }
+
+        fetchKioskState();
+        resetIdleTimer();
+      }
+
+      function watchReturnSession(sessionToken) {
+        cleanupReturnSessionWatchers();
+        if (!sessionToken) return;
+        activeReturnToken = sessionToken;
+        returnCompletedHandled = false;
+
+        try {
+          const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const ws = new WebSocket(`${proto}//${window.location.host}/ws/return/${encodeURIComponent(sessionToken)}`);
+          returnSessionWs = ws;
+          ws.onmessage = (evt) => {
+            try {
+              const payload = JSON.parse(evt.data);
+              if (
+                payload.event === 'return_completed' ||
+                (payload.session && payload.session.status === 'completed')
+              ) {
+                const tx =
+                  payload.transaction ||
+                  (payload.session && payload.session.completed_transaction) ||
+                  null;
+                handleReturnSessionCompleted(tx, payload.safety_status || null);
+              }
+            } catch {
+              // ignore malformed messages
+            }
+          };
+          ws.onerror = () => {
+            // 3-second polling fallback handles completion when WS fails
+          };
+        } catch {
+          // fallback to polling below
+        }
+
+        returnPollTimer = setInterval(async () => {
+          if (returnCompletedHandled || activeReturnToken !== sessionToken) return;
+          try {
+            const pollRes = await fetch(`/api/kiosk/return-session/${encodeURIComponent(sessionToken)}`);
+            if (pollRes.status === 410) {
+              const statusEl = document.getElementById('return-qr-status');
+              if (statusEl) statusEl.textContent = 'QR session expired — close and retry';
+              cleanupReturnSessionWatchers();
+              return;
+            }
+            if (!pollRes.ok) return;
+            const pollData = await pollRes.json();
+            if (
+              (pollData.session && pollData.session.status === 'completed') ||
+              (pollData.transaction_preview && pollData.transaction_preview.status === 'Returned / Logged Out')
+            ) {
+              const tx =
+                pollData.transaction ||
+                (pollData.session && pollData.session.completed_transaction) ||
+                pollData.transaction_preview ||
+                null;
+              handleReturnSessionCompleted(tx, pollData.safety_status || null);
+            }
+          } catch {
+            // ignore transient polling errors
+          }
+        }, 3000);
+      }
+
+      async function openReturnQrSession(txId) {
+        resetIdleTimer();
+        const errBanner = document.getElementById('return-error-banner');
+        if (errBanner) errBanner.classList.add('hidden');
+
+        const localTx = transactionsList.find((t) => t.id === txId) || null;
+
+        try {
+          const res = await fetch('/api/kiosk/return-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transaction_id: txId }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.session) {
+            if (errBanner) {
+              errBanner.textContent = data.error || 'Could not generate Return Verification QR session.';
+              errBanner.classList.remove('hidden');
+            }
+            fetchKioskState();
+            return;
+          }
+
+          const sess = data.session;
+          const maskedName =
+            sess.masked_student_name || (localTx ? maskStudentName(localTx.student_name) : 'Masked Student');
+          const maskedId =
+            sess.masked_student_id || (localTx ? maskStudentId(localTx.student_id_lrn) : '********');
+          const txCode = sess.transaction_code || (localTx ? localTx.transaction_code : '');
+          const items = Array.isArray(sess.items) ? sess.items : (localTx && localTx.items) || [];
+
+          const tokenEl = document.getElementById('return-qr-token');
+          const imgEl = document.getElementById('return-qr-img');
+          const statusEl = document.getElementById('return-qr-status');
+          const borrowerEl = document.getElementById('return-qr-borrower');
+          const txCodeEl = document.getElementById('return-qr-tx-code');
+          const itemsListEl = document.getElementById('return-qr-items-list');
+          const urlEl = document.getElementById('return-qr-url');
+          const redirectLink = document.getElementById('return-qr-redirect-link');
+          const desktopWrap = document.getElementById('return-qr-desktop-wrap');
+
+          if (tokenEl) tokenEl.textContent = `Session: ${sess.session_token}`;
+          if (imgEl) imgEl.src = sess.qr_data_url || '';
+          if (statusEl) statusEl.textContent = 'Scan with your phone camera';
+          if (borrowerEl) borrowerEl.textContent = `${maskedName} (${maskedId})`;
+          if (txCodeEl) txCodeEl.textContent = txCode;
+          if (itemsListEl) {
+            itemsListEl.innerHTML = items
+              .map(
+                (i) =>
+                  `<div class="bg-white px-2 py-1 rounded-lg border border-slate-200/80">• ${Number(i.quantity || 1)}× ${escapeHtml(i.name)} <span class="text-slate-500">(${escapeHtml(i.storage_compartment || '')})</span></div>`
+              )
+              .join('');
+          }
+
+          const mobileUrl =
+            sess.mobile_url || `${window.location.origin}/student/return/${sess.session_token}`;
+          if (urlEl) urlEl.textContent = mobileUrl;
+
+          const isKioskMode = detectKioskMode();
+          if (redirectLink) {
+            redirectLink.href = `/student/return/${encodeURIComponent(sess.session_token)}`;
+            redirectLink.classList.toggle('hidden', isKioskMode);
+          }
+          if (desktopWrap) {
+            desktopWrap.classList.toggle('hidden', isKioskMode);
+          }
+
+          document.getElementById('return-qr-modal').classList.remove('hidden');
+          watchReturnSession(sess.session_token);
+        } catch {
+          if (errBanner) {
+            errBanner.textContent = 'Network error while generating Return Verification QR session.';
+            errBanner.classList.remove('hidden');
+          }
         }
       }
 
