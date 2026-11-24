@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>LabGuard+ Mobile Student Form — Arellano University Jose Rizal Campus</title>
+    <title>LabGuard+ Verified Student Checkout — Arellano University Jose Rizal Campus</title>
     <link rel="stylesheet" href="/css/labguard.css" />
     <style>
       body {
@@ -106,6 +106,12 @@
       .check-sparkle-3 {
         animation: sparklePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.52s both;
       }
+      details > summary {
+        list-style: none;
+      }
+      details > summary::-webkit-details-marker {
+        display: none;
+      }
     </style>
   </head>
   <!-- On actual phones (<640px): full-bleed white/slate screen. On PC (>=640px): dark studio backdrop showcasing the Smartphone Frame -->
@@ -113,7 +119,7 @@
     <!-- PC Context Label (Hidden on actual phones) -->
     <div class="hidden sm:flex items-center justify-between w-full max-w-[420px] mb-3 px-2 text-xs text-slate-300">
       <span class="font-mono font-semibold text-[#F5A623]">
-        📱 Mobile Student View (After QR Scan)
+        Mobile Verified Checkout (After QR Scan)
       </span>
       <a href="/kiosk" class="text-slate-300 hover:text-white underline">
         ← Back to Kiosk LCD
@@ -127,7 +133,7 @@
       class="w-full max-w-[420px] bg-[#F8FAFC] min-h-screen sm:min-h-[820px] sm:max-h-[880px] sm:rounded-[44px] sm:border-[10px] sm:border-slate-800 sm:shadow-2xl flex flex-col overflow-hidden relative"
     >
       <!-- Phone Status Bar & Speaker Notch (Visible on PC Phone Frame) -->
-      <div class="hidden sm:flex items-center justify-between bg-[#003087] text-white px-6 pt-2.5 pb-1 text-[11px] font-mono">
+      <div class="hidden sm:flex items-center justify-between bg-[#003087] text-white px-6 pt-2.5 pb-1 text-[11px] font-mono shrink-0">
         <span>9:41</span>
         <div class="w-24 h-4 bg-slate-950 rounded-full"></div>
         <span>5G · 100%</span>
@@ -146,7 +152,7 @@
               LabGuard+
             </span>
             <span class="text-[11px] text-blue-200 block truncate mt-0.5">
-              AU Jose Rizal Campus · Student Form
+              AU Jose Rizal Campus · Verified Checkout
             </span>
           </div>
         </div>
@@ -161,68 +167,187 @@
       <!-- Scrollable Smartphone Viewport Content -->
       <main class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         <!-- =============================================================== -->
-        <!-- COMPLETED DIGITAL PASS / RECEIPT ON STUDENT PHONE               -->
+        <!-- LOADING STATE WHILE CHECKING SESSION & STUDENT AUTH             -->
         <!-- =============================================================== -->
         <div
-          id="completed-receipt-box"
-          class="hidden bg-white border-2 border-emerald-500 rounded-2xl p-5 space-y-4 shadow-xl"
+          id="checkout-loading-box"
+          class="bg-white border border-slate-200 rounded-2xl p-6 text-center space-y-2.5 shadow-2xs"
         >
-          <div class="text-center space-y-2 border-b border-slate-100 pb-4">
-            <!-- Animated Celebratory Checkmark Icon with Pulse Rings & Self-Drawing Stroke -->
-            <div class="relative w-24 h-24 mx-auto flex items-center justify-center my-1">
-              <!-- Outer Glowing Pulse Halo Rings -->
-              <div class="absolute inset-0 rounded-full bg-emerald-400/25 check-ring-pulse pointer-events-none"></div>
-              <div class="absolute inset-2 rounded-full bg-emerald-500/20 check-ring-pulse pointer-events-none" style="animation-delay: 0.5s;"></div>
-
-              <!-- Micro Sparkle Accents -->
-              <div class="absolute -top-1 right-2 text-emerald-500 text-sm check-sparkle-1 pointer-events-none">✦</div>
-              <div class="absolute bottom-1 -left-1 text-emerald-400 text-xs check-sparkle-2 pointer-events-none">✦</div>
-              <div class="absolute top-3 -left-2 text-[#F5A623] text-xs check-sparkle-3 pointer-events-none">★</div>
-
-              <!-- Spring Popping Circular Badge -->
-              <div class="relative w-16 h-16 rounded-full bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-xl shadow-emerald-500/35 check-circle-pop border-2 border-white/80">
-                <!-- SVG with Self-Drawing Checkmark Path -->
-                <svg class="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path class="check-svg-path" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              </div>
-            </div>
-
-            <p id="receipt-code" class="text-xs font-mono font-bold uppercase tracking-wider text-[#16A34A] bg-emerald-50 py-1 px-3.5 rounded-full inline-block border border-emerald-200 shadow-2xs"></p>
-            <h2 class="text-xl font-extrabold text-slate-900 font-heading">
-              Equipment Checkout Confirmed!
-            </h2>
-            <p class="text-xs text-slate-600 max-w-xs mx-auto">
-              Your student log-in and borrowed apparatus are recorded in the AU-JRC Laboratory database.
-            </p>
+          <div class="w-10 h-10 mx-auto rounded-full bg-blue-50 border border-blue-200 text-[#003087] flex items-center justify-center">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
           </div>
-
-          <div
-            id="receipt-details"
-            class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5 font-medium"
-          ></div>
-
-          <div class="sm:hidden p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
-            <p class="text-xs font-semibold text-emerald-900 leading-snug">
-              You may now show this pass to the lab counter or close this tab.
-            </p>
-          </div>
-
-          <a
-            href="/kiosk"
-            class="hidden sm:block w-full py-3.5 px-4 bg-[#003087] hover:bg-[#002466] active:scale-95 text-white text-center text-xs font-heading font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer"
-          >
-            Done · Return to Kiosk
-          </a>
+          <p class="text-xs font-heading font-bold text-slate-800">
+            Loading Kiosk Checkout Session...
+          </p>
+          <p class="text-[11px] text-slate-500">
+            Verifying scanned apparatus basket and student account status.
+          </p>
         </div>
 
         <!-- =============================================================== -->
-        <!-- ACTIVE MOBILE STUDENT REGISTRATION FORM                         -->
+        <!-- STEP 1: STUDENT AUTHENTICATION GATE (LOGGED OUT)                -->
         <!-- =============================================================== -->
-        <div id="form-workspace" class="space-y-4">
-          <!-- Card 1: Checked-Out Basket Summary & How to Use Guide -->
-          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-            <div class="flex items-center justify-between">
+        <section id="student-login-gate" class="hidden space-y-4">
+          <!-- Compact Scanned Basket Preview Above Login -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-2xs">
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-[10px] font-mono uppercase tracking-wider text-[#003087] font-bold">
+                  Scanned from Kiosk
+                </p>
+                <h2 class="text-xs font-extrabold text-slate-900 font-heading truncate">
+                  Equipment Ready for Checkout
+                </h2>
+              </div>
+              <span
+                id="gate-basket-count"
+                class="px-2 py-0.5 rounded-lg bg-blue-50 font-mono text-[11px] font-bold text-[#003087] shrink-0"
+              >
+                0 Units
+              </span>
+            </div>
+            <div id="gate-basket-items" class="space-y-1.5"></div>
+          </div>
+
+          <!-- Student Login Form Card -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5 shadow-sm">
+            <div class="bg-blue-50/80 border border-blue-200 rounded-xl p-3 flex items-start gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-[#003087] text-white flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <h1 class="text-sm font-extrabold text-[#003087] font-heading leading-tight">
+                  Verified Student Sign-In Required
+                </h1>
+                <p class="text-[11px] text-slate-600 leading-snug mt-0.5">
+                  Sign in with your approved AU-JRC LabGuard+ account to confirm your identity and borrow apparatus.
+                </p>
+              </div>
+            </div>
+
+            <form id="student-login-form" onsubmit="handleStudentGateLogin(event)" class="space-y-3">
+              <div>
+                <label for="login-identifier" class="block text-xs font-bold text-slate-800 mb-1">
+                  Student ID / LRN or School Email *
+                </label>
+                <input
+                  id="login-identifier"
+                  type="text"
+                  required
+                  autocomplete="username"
+                  placeholder="AUJRC-2026-0101 or name@arellano.edu.ph"
+                  class="w-full h-11 px-3.5 text-xs sm:text-sm font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label for="login-password" class="block text-xs font-bold text-slate-800 mb-1">
+                  Account Password *
+                </label>
+                <input
+                  id="login-password"
+                  type="password"
+                  required
+                  autocomplete="current-password"
+                  placeholder="Enter your password"
+                  class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
+                />
+              </div>
+
+              <!-- Color-Coded Login / Account Status Error Banner -->
+              <div id="login-error-box" role="alert" class="hidden rounded-xl p-3 border text-xs space-y-1.5"></div>
+
+              <button
+                id="login-submit-btn"
+                type="submit"
+                class="w-full h-12 py-3 px-4 bg-[#003087] hover:bg-[#002466] active:scale-[0.99] disabled:opacity-60 text-white text-xs sm:text-sm font-heading font-extrabold tracking-wide rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Sign In &amp; Continue Checkout →
+              </button>
+            </form>
+
+            <!-- Prominent New Student Registration Link -->
+            <div class="pt-2 border-t border-slate-100 space-y-2.5">
+              <a
+                id="gate-register-link"
+                href="/student/register"
+                class="block w-full py-2.5 px-3.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-center text-xs font-heading font-extrabold rounded-xl transition-colors"
+              >
+                New student? Register &amp; Upload School ID →
+              </a>
+
+              <!-- Discreet Demo Account Testing Hint -->
+              <div class="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] text-slate-500">
+                <span class="truncate">
+                  Demo Approved Account:
+                  <code class="font-mono font-bold text-slate-700">AUJRC-2026-0101</code> /
+                  <code class="font-mono font-bold text-slate-700">student123</code>
+                </span>
+                <button
+                  type="button"
+                  onclick="fillDemoStudentLogin()"
+                  class="font-heading font-bold text-[#003087] underline shrink-0 cursor-pointer"
+                >
+                  Auto-Fill
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- STEP 2: AUTHENTICATED CHECKOUT FORM                             -->
+        <!-- =============================================================== -->
+        <div id="form-workspace" class="hidden space-y-4">
+          <!-- Verified Student Identity Banner (Locked to Authenticated Account) -->
+          <div
+            id="verified-student-banner"
+            class="bg-emerald-50/90 border-2 border-emerald-300 rounded-2xl p-3.5 space-y-2.5 shadow-2xs"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#16A34A] text-white font-mono text-[10px] font-extrabold uppercase tracking-wider">
+                  ✓ Verified Student
+                </span>
+                <p id="verified-student-name" class="text-sm font-extrabold text-slate-900 font-heading mt-1 truncate"></p>
+              </div>
+              <span
+                id="verified-student-strand"
+                class="px-2 py-0.5 rounded-lg bg-white border border-emerald-200 font-mono text-[10px] font-extrabold text-[#003087] shrink-0"
+              ></span>
+            </div>
+
+            <div class="bg-white/90 border border-emerald-200 rounded-xl px-3 py-2 text-[11px] space-y-0.5">
+              <p class="font-mono font-bold text-[#003087]" id="verified-student-lrn"></p>
+              <p class="font-mono text-slate-600 truncate" id="verified-student-email"></p>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 pt-0.5">
+              <a
+                href="/student/account"
+                class="px-3 py-1.5 bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-heading font-bold rounded-lg transition-colors"
+              >
+                My Account
+              </a>
+              <button
+                type="button"
+                onclick="handleStudentSwitchAccount()"
+                class="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-[11px] font-heading font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                Sign Out / Switch
+              </button>
+            </div>
+          </div>
+
+          <!-- Card 1: Scanned Borrowed Equipment Basket Summary -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+            <div class="flex items-center justify-between gap-2">
               <div>
                 <p class="text-[10px] font-mono uppercase tracking-wider text-[#003087] font-bold">
                   Scanned from Kiosk
@@ -240,89 +365,21 @@
             </div>
 
             <div id="basket-summary-items" class="space-y-2"></div>
+
+            <p class="text-[11px] text-slate-600 bg-blue-50/70 border border-blue-200 rounded-xl px-3 py-2 leading-snug">
+              <strong class="text-[#003087]">Included on your Digital Pass:</strong> Step-by-step Proper Use Instructions &amp; Safety Precautions for every item appear immediately after confirmation.
+            </p>
           </div>
 
-          <!-- Card 2: Mobile Student Inputs with Returning Borrower Auto-Fill -->
+          <!-- Card 2: Lab Session Details & Return Schedule -->
           <form
             id="mobile-student-form"
             onsubmit="submitStudentCheckoutForm(event)"
-            class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5"
+            class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3.5 shadow-2xs"
           >
-            <!-- Returning Borrower Quick Auto-Fill Bar -->
-            <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-3 space-y-1.5">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-heading font-bold text-[#003087]">
-                  Returning Borrower?
-                </span>
-                <span class="text-[10px] text-slate-500 font-mono">
-                  Tap name to auto-fill
-                </span>
-              </div>
-              <div id="preset-buttons" class="flex gap-1.5 overflow-x-auto pb-1"></div>
-            </div>
-
             <div>
-              <label class="block text-xs font-bold text-slate-800 mb-1">
-                Student Full Name *
-              </label>
-              <input
-                id="student-name"
-                type="text"
-                required
-                autocomplete="name"
-                placeholder="One Enrique Sebastian G. Abalos"
-                class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
-              />
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-slate-800 mb-1">
-                Student ID / LRN Number *
-              </label>
-              <input
-                id="student-lrn"
-                type="text"
-                required
-                oninput="handleLrnAutoLookup(this.value)"
-                placeholder="AUJRC-2026-0101"
-                class="w-full h-11 px-3.5 text-xs sm:text-sm font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
-              />
-            </div>
-
-            <!-- Strand / Faculty Selector -->
-            <div>
-              <label class="block text-xs font-bold text-slate-800 mb-1">
-                Strand / Faculty *
-              </label>
-              <select
-                id="grade-section"
-                class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white font-medium"
-              >
-                <optgroup label="STRANDS">
-                  <option value="STEM">STEM</option>
-                  <option value="HUMSS">HUMSS</option>
-                  <option value="ABM">ABM</option>
-                </optgroup>
-                <option value="FACULTY">FACULTY</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-slate-800 mb-1">
-                School Email (@arellano.edu.ph)
-              </label>
-              <input
-                id="school-email"
-                type="email"
-                inputmode="email"
-                placeholder="student.name@arellano.edu.ph"
-                class="w-full h-11 px-3.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#003087] focus:bg-white"
-              />
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-slate-800 mb-1">
-                Science Subject & Lab Activity *
+              <label for="subject-activity" class="block text-xs font-bold text-slate-800 mb-1">
+                Science Subject &amp; Lab Activity *
               </label>
               <input
                 id="subject-activity"
@@ -334,7 +391,7 @@
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-800 mb-1">
+              <label for="teacher-name" class="block text-xs font-bold text-slate-800 mb-1">
                 Supervising Science Teacher *
               </label>
               <input
@@ -350,7 +407,7 @@
             <div class="space-y-2">
               <div class="flex items-center justify-between">
                 <label class="block text-xs font-bold text-slate-800">
-                  Set Return Date & Time *
+                  Set Return Date &amp; Time *
                 </label>
                 <span id="duration-preview-badge" class="text-[11px] font-mono text-[#003087] font-bold">
                   2.0 Hours Loan
@@ -361,7 +418,9 @@
               <div class="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
                 <div class="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">Return Date *</label>
+                    <label for="custom-return-date" class="block text-[11px] font-bold text-slate-700 mb-1">
+                      Return Date *
+                    </label>
                     <input
                       id="custom-return-date"
                       type="date"
@@ -371,7 +430,9 @@
                     />
                   </div>
                   <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">Return Time *</label>
+                    <label for="custom-return-time" class="block text-[11px] font-bold text-slate-700 mb-1">
+                      Return Time *
+                    </label>
                     <input
                       id="custom-return-time"
                       type="time"
@@ -398,24 +459,109 @@
                 class="mt-0.5 w-4 h-4 accent-[#003087] rounded shrink-0"
               />
               <span class="text-xs text-slate-700 leading-snug">
-                <strong class="text-slate-900">Safety & Accountability Pledge:</strong> I am wearing required PPE and will return all borrowed apparatus in good condition.
+                <strong class="text-slate-900">Safety &amp; Accountability Pledge:</strong> I am wearing required PPE, will follow the embedded proper-use instructions and safety precautions, and will return all borrowed apparatus in good condition.
               </span>
             </label>
 
             <div
               id="form-error-box"
-              class="hidden text-xs font-semibold text-red-600 bg-red-50 p-3 rounded-xl border border-red-200"
+              role="alert"
+              class="hidden text-xs font-semibold text-red-700 bg-red-50 p-3 rounded-xl border border-red-200"
             ></div>
 
             <!-- Primary Submit Button -->
             <button
               id="submit-btn"
               type="submit"
-              class="w-full h-12 py-3 px-5 bg-[#C8102E] active:bg-[#a50d25] text-white text-xs sm:text-sm font-heading font-extrabold uppercase tracking-wide rounded-xl shadow-md transition-all cursor-pointer"
+              class="w-full h-12 py-3 px-5 bg-[#C8102E] hover:bg-[#a50d25] active:scale-[0.99] disabled:opacity-60 text-white text-xs sm:text-sm font-heading font-extrabold uppercase tracking-wide rounded-xl shadow-md transition-all cursor-pointer"
             >
-              Submit & Complete Checkout
+              Confirm Verified Checkout →
             </button>
           </form>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- STEP 3: CONFIRMED DIGITAL PASS + EMBEDDED ITEM INSTRUCTIONS     -->
+        <!-- =============================================================== -->
+        <div
+          id="completed-receipt-box"
+          class="hidden bg-white border-2 border-emerald-500 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl"
+        >
+          <div class="text-center space-y-2 border-b border-slate-100 pb-4">
+            <!-- Animated Celebratory Checkmark Icon with Pulse Rings & Self-Drawing Stroke -->
+            <div class="relative w-24 h-24 mx-auto flex items-center justify-center my-1">
+              <!-- Outer Glowing Pulse Halo Rings -->
+              <div class="absolute inset-0 rounded-full bg-emerald-400/25 check-ring-pulse pointer-events-none"></div>
+              <div class="absolute inset-2 rounded-full bg-emerald-500/20 check-ring-pulse pointer-events-none" style="animation-delay: 0.5s;"></div>
+
+              <!-- Micro Sparkle Accents -->
+              <div class="absolute -top-1 right-2 text-emerald-500 text-sm check-sparkle-1 pointer-events-none">✦</div>
+              <div class="absolute bottom-1 -left-1 text-emerald-400 text-xs check-sparkle-2 pointer-events-none">✦</div>
+              <div class="absolute top-3 -left-2 text-[#F5A623] text-xs check-sparkle-3 pointer-events-none">★</div>
+
+              <!-- Spring Popping Circular Badge -->
+              <div class="relative w-16 h-16 rounded-full bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-xl shadow-emerald-500/35 check-circle-pop border-2 border-white/80">
+                <!-- Crisp White SVG Checkmark with Self-Drawing Path -->
+                <svg class="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path class="check-svg-path" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+            </div>
+
+            <p id="receipt-code" class="text-xs font-mono font-bold uppercase tracking-wider text-[#16A34A] bg-emerald-50 py-1 px-3.5 rounded-full inline-block border border-emerald-200 shadow-2xs"></p>
+            <h2 class="text-xl font-extrabold text-slate-900 font-heading">
+              Equipment Checkout Confirmed!
+            </h2>
+            <p class="text-xs text-slate-600 max-w-xs mx-auto">
+              Your verified student account and borrowed apparatus are recorded in the AU-JRC Laboratory database.
+            </p>
+          </div>
+
+          <div
+            id="receipt-details"
+            class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5 font-medium"
+          ></div>
+
+          <!-- HIGHLIGHTED EMBEDDED APPARATUS INSTRUCTIONS & SAFETY PRECAUTIONS -->
+          <section class="bg-blue-50/75 border-2 border-[#003087]/25 rounded-2xl p-3.5 space-y-3">
+            <div class="flex items-start justify-between gap-2 border-b border-blue-200/80 pb-2.5">
+              <div>
+                <p class="text-[10px] font-mono font-extrabold uppercase tracking-wider text-[#003087]">
+                  Before You Begin · Required Guide
+                </p>
+                <h3 class="text-sm font-extrabold text-slate-900 font-heading leading-snug mt-0.5">
+                  Embedded Apparatus Instructions &amp; Safety Precautions
+                </h3>
+              </div>
+              <span class="px-2 py-0.5 rounded-full bg-[#003087] text-white font-mono text-[9px] font-bold uppercase shrink-0">
+                Saved to Pass
+              </span>
+            </div>
+
+            <div id="receipt-instructions-list" class="space-y-3"></div>
+          </section>
+
+          <div class="sm:hidden p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+            <p class="text-[11px] font-semibold text-emerald-900 leading-snug">
+              These instructions stay pinned to your active loan inside My Account whenever you need them in the lab.
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <a
+              href="/student/account"
+              class="block w-full py-3.5 px-4 bg-[#16A34A] hover:bg-emerald-700 active:scale-[0.99] text-white text-center text-xs font-heading font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md"
+            >
+              Open My Account &amp; Active Loans →
+            </a>
+
+            <a
+              href="/kiosk"
+              class="hidden sm:block w-full py-3 px-4 bg-[#003087] hover:bg-[#002466] active:scale-[0.99] text-white text-center text-xs font-heading font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-sm cursor-pointer"
+            >
+              Return to Kiosk
+            </a>
+          </div>
         </div>
       </main>
 
@@ -426,41 +572,289 @@
     </div>
 
     <script>
+      const STUDENT_TOKEN_KEY = 'labguard_student_token';
       const pathParts = window.location.pathname.split('/').filter(Boolean);
       const sessionToken = pathParts[pathParts.length - 1] || 'DIRECT';
       document.getElementById('header-token-label').textContent = sessionToken;
 
-      let basketItems = [];
-      let presetsList = [];
-      let selectedHours = 2;
-
-      const HOW_TO_USE_GUIDES = {
-        'LG-EQ-001': 'Inspect glass wall and spout for cracks before pouring. Place on a wire gauze over a tripod stand when heating liquids.',
-        'LG-EQ-002': 'Place on a flat laboratory bench, pour carefully, and read liquid volume at eye level from the bottom of the meniscus.',
-        'LG-EQ-003': 'Swirl contents gently without spilling. Always use heat-resistant gloves or tongs and wire gauze when heating the round bottom.',
-        'LG-EQ-004': 'Seat filter paper properly inside the cone when filtering. Never overfill liquid above the filter rim.',
-        'LG-EQ-005': 'Ideal for titrations and swirling mixtures without splashing. Never clamp overly tight at the glass neck.',
-        'LG-EQ-006': 'Place tubes upright in the rack when not in hand. When heating with a holder, point the open mouth away from everyone.',
-        'LG-EQ-007': 'Set legs firmly on a heat-safe surface and place wire gauze flat on top before resting any beaker or flask.',
-        'LG-EQ-008': 'Lift carefully by the top knob with both hands supporting the rim. Ensure a clean seal on the base plate.',
-        'LG-EQ-009': 'Wear and button the laboratory gown completely over clothing before entering active laboratory experiments.',
-        'LG-EQ-010': 'Stir solutions gently without striking glass walls. Wear PPE safety glasses, facemask, and gloves throughout handling.',
-        'LG-EQ-011': 'Carry with two hands (arm & base). Start on lowest 4x objective lens, clip slide on stage, and focus slowly using coarse then fine knobs.',
-      };
-
-      function getHowToUseText(item) {
-        if (item.description && item.description.trim().length > 0) return item.description;
-        if (HOW_TO_USE_GUIDES[item.qr_code]) return HOW_TO_USE_GUIDES[item.qr_code];
-        return 'Handle carefully on a level laboratory bench while wearing required PPE.';
+      const gateRegLink = document.getElementById('gate-register-link');
+      if (gateRegLink) {
+        gateRegLink.href = `/student/register?next=${encodeURIComponent(window.location.pathname)}`;
       }
 
-      function normalizeStrandOrFaculty(val) {
-        if (!val) return 'STEM';
-        const upper = val.toUpperCase();
-        if (upper.includes('HUMSS')) return 'HUMSS';
-        if (upper.includes('ABM')) return 'ABM';
-        if (upper.includes('FACULTY') || upper.includes('TEACHER') || upper.includes('STAFF') || upper.includes('ADVISER')) return 'FACULTY';
-        return 'STEM';
+      let basketItems = [];
+      let currentStudent = null;
+      let sessionStatus = 'pending_student_info';
+      let selectedHours = 2;
+      let isReturnTimeValid = true;
+      let returnTimeInitialized = false;
+
+      const FALLBACK_USAGE_GUIDES = {
+        'LG-EQ-001': [
+          'Inspect the glass wall, rim, and pouring spout for hairline cracks before use.',
+          'Pour liquids slowly down the spout over a level bench and use wire gauze when heating.',
+          'Allow heated glassware to cool gradually before rinsing or returning to storage.',
+        ],
+        'LG-EQ-002': [
+          'Place the graduated cylinder flat on a level laboratory bench before pouring.',
+          'Add liquid carefully without splashing and read volume at eye level from the bottom of the meniscus.',
+          'Rinse thoroughly with clean water after use and dry upright on a rack.',
+        ],
+        'LG-EQ-003': [
+          'Inspect the round bottom and neck for cracks before adding reagents.',
+          'Swirl contents gently to mix; always support with a clamp and wire gauze during heating.',
+          'Handle heated flasks with heat-resistant gloves or tongs only.',
+        ],
+        'LG-EQ-004': [
+          'Fold and seat filter paper snugly inside the glass cone before pouring mixtures.',
+          'Support the funnel on a funnel stand or flask neck and never fill liquid above the paper rim.',
+          'Rinse the stem cleanly after filtration to avoid residue buildup.',
+        ],
+        'LG-EQ-005': [
+          'Use the conical shape to swirl mixtures or titrations gently without splashing.',
+          'Secure loosely if clamped at the neck and heat only on wire gauze or a hot plate.',
+          'Rinse clean and allow to drain completely before returning.',
+        ],
+        'LG-EQ-006': [
+          'Keep test tubes upright in the rack whenever not actively held.',
+          'Hold with a test tube clamp when heating and always point the open mouth away from everyone.',
+          'Clean with a test tube brush and invert on rack pegs to dry.',
+        ],
+        'LG-EQ-007': [
+          'Set all three tripod legs firmly on a flat, heat-resistant laboratory bench.',
+          'Center wire gauze flat across the ring before resting any beaker or flask.',
+          'Allow metal surfaces to cool completely before touching or moving after heating.',
+        ],
+        'LG-EQ-008': [
+          'Lift the bell jar cleanly by the top knob while supporting the lower rim with both hands.',
+          'Check that the base plate rim is clean and free of grit for an even seal.',
+          'Set down gently on a flat surface away from bench edges.',
+        ],
+        'LG-EQ-009': [
+          'Put on the laboratory gown over street clothing before entering active lab work.',
+          'Fasten all front buttons securely and keep sleeves neatly fitted away from open flames.',
+          'Remove and fold neatly before exiting the laboratory.',
+        ],
+        'LG-EQ-010': [
+          'Stir solutions smoothly in circular motions without striking container walls.',
+          'Rinse the rod between different reagents to prevent cross-contamination.',
+          'Lay flat on a clean surface away from the bench edge when not in use.',
+        ],
+        'LG-EQ-011': [
+          'Carry the microscope upright with two hands — one on the arm and one supporting the base.',
+          'Start on the lowest 4x objective lens, clip the slide securely on the stage, and turn on illumination.',
+          'Focus slowly with the coarse knob first, refine with the fine knob, then return to 4x and switch off before storage.',
+        ],
+      };
+
+      function escapeHtml(str) {
+        return String(str === null || str === undefined ? '' : str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function getStudentToken() {
+        return localStorage.getItem(STUDENT_TOKEN_KEY) || '';
+      }
+
+      function setStudentToken(token) {
+        if (token) {
+          localStorage.setItem(STUDENT_TOKEN_KEY, token);
+        } else {
+          localStorage.removeItem(STUDENT_TOKEN_KEY);
+        }
+      }
+
+      function getUsageSteps(item) {
+        if (Array.isArray(item.usage_instructions) && item.usage_instructions.length > 0) {
+          const clean = item.usage_instructions.map((s) => String(s || '').trim()).filter(Boolean);
+          if (clean.length > 0) return clean;
+        }
+        if (item.qr_code && FALLBACK_USAGE_GUIDES[item.qr_code]) {
+          return FALLBACK_USAGE_GUIDES[item.qr_code];
+        }
+        if (item.description && String(item.description).trim().length > 0) {
+          return [String(item.description).trim()];
+        }
+        return ['Inspect the apparatus carefully and operate on a level laboratory bench following teacher guidance.'];
+      }
+
+      function getSafetyPrecautions(item) {
+        if (Array.isArray(item.prerequisites) && item.prerequisites.length > 0) {
+          const clean = item.prerequisites.map((s) => String(s || '').trim()).filter(Boolean);
+          if (clean.length > 0) return clean;
+        }
+        return ['Wear required laboratory PPE (buttoned lab gown & safety goggles) before handling apparatus.'];
+      }
+
+      function fillDemoStudentLogin() {
+        const idEl = document.getElementById('login-identifier');
+        const pwEl = document.getElementById('login-password');
+        if (idEl) idEl.value = 'AUJRC-2026-0101';
+        if (pwEl) pwEl.value = 'student123';
+        hideLoginError();
+      }
+
+      function hideLoginError() {
+        const box = document.getElementById('login-error-box');
+        if (box) {
+          box.classList.add('hidden');
+          box.innerHTML = '';
+        }
+      }
+
+      function showLoginStatusError(status, message, rejectionReason) {
+        const box = document.getElementById('login-error-box');
+        if (!box) return;
+
+        const regNextUrl = `/student/register?next=${encodeURIComponent(window.location.pathname)}`;
+        const st = (status || '').toLowerCase();
+
+        if (st === 'pending') {
+          box.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-amber-50 border-amber-300 text-amber-950';
+          box.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded-full bg-[#F5A623] text-slate-950 font-mono text-[10px] font-extrabold uppercase">Pending Approval</span>
+            </div>
+            <p class="font-semibold leading-snug">${escapeHtml(message || 'Your registration is awaiting Laboratory Admin verification of your School ID.')}</p>
+            <a href="${regNextUrl}" class="inline-block font-heading font-bold text-amber-900 underline">Check Approval Status →</a>
+          `;
+        } else if (st === 'rejected') {
+          const reason = (rejectionReason || '').trim();
+          box.className = 'rounded-xl p-3 border text-xs space-y-2 bg-red-50 border-red-300 text-red-900';
+          box.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded-full bg-[#C8102E] text-white font-mono text-[10px] font-extrabold uppercase">Registration Rejected</span>
+            </div>
+            <p class="font-semibold leading-snug">${escapeHtml(message || 'Your registration was rejected by the Laboratory Admin.')}</p>
+            ${
+              reason
+                ? `<p class="p-2 bg-white/80 border border-red-200 rounded-lg text-[11px] font-medium text-red-900"><strong>Reason:</strong> ${escapeHtml(reason)}</p>`
+                : ''
+            }
+            <a href="${regNextUrl}" class="inline-block px-3 py-1.5 bg-white hover:bg-red-100 border border-red-300 text-red-800 text-[11px] font-heading font-bold rounded-lg">
+              Re-submit Registration →
+            </a>
+          `;
+        } else if (st === 'suspended') {
+          box.className = 'rounded-xl p-3 border text-xs space-y-1.5 bg-red-50 border-red-300 text-red-900';
+          box.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded-full bg-red-700 text-white font-mono text-[10px] font-extrabold uppercase">Account Suspended</span>
+            </div>
+            <p class="font-semibold leading-snug">${escapeHtml(message || 'Your student account is suspended. Please contact Laboratory Personnel.')}</p>
+          `;
+        } else {
+          box.className = 'rounded-xl p-3 border text-xs space-y-1 bg-red-50 border-red-200 text-red-700';
+          box.innerHTML = `<p class="font-semibold leading-snug">${escapeHtml(message || 'Invalid Student ID / Email or password.')}</p>`;
+        }
+        box.classList.remove('hidden');
+      }
+
+      function renderGateBasketPreview() {
+        const total = basketItems.reduce((s, i) => s + (i.quantity || 1), 0);
+        const countEl = document.getElementById('gate-basket-count');
+        const listEl = document.getElementById('gate-basket-items');
+        if (countEl) countEl.textContent = `${total} Unit${total === 1 ? '' : 's'}`;
+        if (!listEl) return;
+
+        if (!basketItems.length) {
+          listEl.innerHTML = '<p class="text-[11px] text-slate-500">No items detected in this QR session.</p>';
+          return;
+        }
+
+        listEl.innerHTML = basketItems
+          .map(
+            (item) => `
+            <div class="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+              <div class="flex items-center gap-2 min-w-0">
+                <img
+                  src="${escapeHtml(item.image_url || `/images/equipment/${item.qr_code}.svg`)}"
+                  alt="${escapeHtml(item.name)}"
+                  class="w-8 h-8 object-contain bg-white rounded-lg border border-slate-200 p-0.5 shrink-0"
+                />
+                <div class="min-w-0">
+                  <p class="text-xs font-bold text-slate-900 truncate">${escapeHtml(item.name)}</p>
+                  <p class="text-[10px] font-mono text-slate-500 truncate">${escapeHtml(item.qr_code || '')} · ${escapeHtml(item.storage_compartment || '')}</p>
+                </div>
+              </div>
+              <span class="font-mono text-xs font-bold text-[#003087] shrink-0">${Number(item.quantity || 1)}×</span>
+            </div>
+          `
+          )
+          .join('');
+      }
+
+      function renderBasketSummary() {
+        const total = basketItems.reduce((s, i) => s + (i.quantity || 1), 0);
+        const countEl = document.getElementById('basket-summary-count');
+        const listEl = document.getElementById('basket-summary-items');
+        if (countEl) countEl.textContent = `${total} Unit${total === 1 ? '' : 's'}`;
+        if (!listEl) return;
+
+        listEl.innerHTML = basketItems
+          .map((item) => {
+            const stepsCount = getUsageSteps(item).length;
+            const safetyCount = getSafetyPrecautions(item).length;
+            const isCaution = item.safety_level === 'CAUTION';
+            return `
+              <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                <div class="flex items-center justify-between gap-2.5">
+                  <img
+                    src="${escapeHtml(item.image_url || `/images/equipment/${item.qr_code}.svg`)}"
+                    alt="${escapeHtml(item.name)}"
+                    class="w-10 h-10 object-contain bg-white rounded-lg border border-slate-200 p-1 shrink-0"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <p class="text-xs font-bold text-slate-900 truncate">${escapeHtml(item.name)}</p>
+                    <p class="text-[10px] font-mono text-slate-500 truncate">${escapeHtml(item.qr_code || '')} · ${escapeHtml(item.storage_compartment || '')}</p>
+                  </div>
+                  <span class="font-mono text-xs font-bold text-[#003087] shrink-0">${Number(item.quantity || 1)}×</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                  <span class="px-2 py-0.5 rounded-full font-bold ${isCaution ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-50 text-[#16A34A] border border-emerald-200'}">
+                    ${isCaution ? '▲ CAUTION / PPE' : '● SAFE'}
+                  </span>
+                  <span class="px-2 py-0.5 rounded-full bg-white text-slate-600 border border-slate-200">
+                    ${stepsCount} use step${stepsCount === 1 ? '' : 's'} · ${safetyCount} precaution${safetyCount === 1 ? '' : 's'}
+                  </span>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+      }
+
+      function populateVerifiedStudentBanner(student) {
+        document.getElementById('verified-student-name').textContent = student.full_name || '';
+        document.getElementById('verified-student-lrn').textContent = student.student_id_lrn || '';
+        document.getElementById('verified-student-strand').textContent = student.grade_section || 'STEM';
+        document.getElementById('verified-student-email').textContent = student.school_email || '';
+      }
+
+      function showLoginGateView() {
+        document.getElementById('checkout-loading-box').classList.add('hidden');
+        document.getElementById('form-workspace').classList.add('hidden');
+        document.getElementById('completed-receipt-box').classList.add('hidden');
+        renderGateBasketPreview();
+        document.getElementById('student-login-gate').classList.remove('hidden');
+      }
+
+      function showAuthenticatedCheckoutView(student) {
+        currentStudent = student;
+        populateVerifiedStudentBanner(student);
+        renderBasketSummary();
+        if (!returnTimeInitialized) {
+          initReturnDateTime(2);
+          returnTimeInitialized = true;
+        }
+        document.getElementById('checkout-loading-box').classList.add('hidden');
+        document.getElementById('student-login-gate').classList.add('hidden');
+        document.getElementById('completed-receipt-box').classList.add('hidden');
+        document.getElementById('form-workspace').classList.remove('hidden');
       }
 
       function initReturnDateTime(defaultHours = 2) {
@@ -504,14 +898,16 @@
         const diffMs = targetDate.getTime() - now.getTime();
 
         if (diffMs <= 0 || isNaN(diffMs)) {
+          isReturnTimeValid = false;
           selectedHours = 1;
           badge.className = 'text-[11px] font-mono text-amber-600 font-bold';
           badge.textContent = 'Invalid Time';
           estText.className = 'text-[11px] font-mono text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200';
-          estText.textContent = '⚠️ Please select a future date and time for returning apparatus.';
+          estText.textContent = 'Please select a future date and time for returning apparatus.';
           return;
         }
 
+        isReturnTimeValid = true;
         const calculatedHours = Math.max(0.5, Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10);
         selectedHours = calculatedHours;
 
@@ -531,108 +927,175 @@
         }
       }
 
-      function handleLrnAutoLookup(val) {
-        const clean = val.trim().toLowerCase();
-        if (!clean) return;
-        const match = presetsList.find((p) => p.student_id_lrn.toLowerCase() === clean);
-        if (match) {
-          document.getElementById('student-name').value = match.student_name;
-          document.getElementById('school-email').value = match.school_email;
-          document.getElementById('teacher-name').value = match.default_teacher;
-          document.getElementById('subject-activity').value = match.default_subject;
-          document.getElementById('grade-section').value = normalizeStrandOrFaculty(match.grade_section);
+      async function verifyStudentToken() {
+        const token = getStudentToken();
+        if (!token) return { ok: false };
+        try {
+          const res = await fetch('/api/students/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.student && data.student.status === 'approved') {
+            return { ok: true, student: data.student };
+          }
+          setStudentToken('');
+          return {
+            ok: false,
+            status: data.account_status || '',
+            error: data.error || '',
+            rejection_reason: data.rejection_reason || '',
+          };
+        } catch {
+          return { ok: false };
         }
       }
 
-      function applyPreset(idx) {
-        const p = presetsList[idx];
-        if (!p) return;
-        document.getElementById('student-name').value = p.student_name;
-        document.getElementById('student-lrn').value = p.student_id_lrn;
-        document.getElementById('school-email').value = p.school_email;
-        document.getElementById('subject-activity').value = p.default_subject;
-        document.getElementById('teacher-name').value = p.default_teacher;
-        document.getElementById('grade-section').value = normalizeStrandOrFaculty(p.grade_section);
-      }
-
-      function renderPresets() {
-        const container = document.getElementById('preset-buttons');
-        container.innerHTML = presetsList
-          .map(
-            (p, idx) =>
-              `<button type="button" onclick="applyPreset(${idx})" class="px-2.5 py-1 text-[11px] font-semibold bg-white border border-blue-200 text-[#003087] hover:bg-blue-100 rounded-lg whitespace-nowrap shrink-0 cursor-pointer shadow-2xs">${p.student_name.split(' ')[0]} (${p.student_id_lrn.slice(-4)})</button>`
-          )
-          .join('');
-      }
-
-      async function loadCheckoutSession() {
+      async function fetchCheckoutSessionDetails() {
+        const token = getStudentToken();
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
         try {
-          const res = await fetch(`/api/kiosk/checkout-session/${sessionToken}`);
+          const res = await fetch(`/api/kiosk/checkout-session/${encodeURIComponent(sessionToken)}`, { headers });
           if (res.ok) {
             const data = await res.json();
             if (data.session) {
+              sessionStatus = data.session.status || 'pending_student_info';
               basketItems = data.session.basket_items || [];
               if (data.session.status === 'completed' && data.session.completed_transaction) {
-                showCompletedReceipt(data.session.completed_transaction);
-                return;
+                return { completedTransaction: data.session.completed_transaction };
               }
             }
-            presetsList = data.student_presets || [];
-          } else {
-            const fallback = await fetch('/api/state');
-            if (fallback.ok) {
-              const st = await fallback.json();
-              presetsList = st.student_presets || [];
-              const firstEq = (st.equipment || [])[0];
-              if (firstEq) {
-                basketItems = [
-                  {
-                    equipment_id: firstEq.id,
-                    qr_code: firstEq.qr_code,
-                    name: firstEq.name,
-                    category: firstEq.category,
-                    image_url: firstEq.image_url,
-                    storage_compartment: firstEq.storage_compartment,
-                    quantity: 1,
-                    unit: firstEq.unit,
-                    safety_level: firstEq.safety_level,
-                    prerequisites: firstEq.prerequisites || [],
-                  },
-                ];
-              }
+            return { completedTransaction: null };
+          }
+
+          // Fallback for DEMO-QR / direct preview route
+          const fallback = await fetch('/api/state');
+          if (fallback.ok) {
+            const st = await fallback.json();
+            const firstEq = (st.equipment || [])[0];
+            if (firstEq) {
+              basketItems = [
+                {
+                  equipment_id: firstEq.id,
+                  qr_code: firstEq.qr_code,
+                  name: firstEq.name,
+                  category: firstEq.category,
+                  image_url: firstEq.image_url,
+                  description: firstEq.description || '',
+                  storage_compartment: firstEq.storage_compartment,
+                  quantity: 1,
+                  unit: firstEq.unit,
+                  safety_level: firstEq.safety_level,
+                  usage_instructions: firstEq.usage_instructions || [],
+                  prerequisites: firstEq.prerequisites || [],
+                },
+              ];
             }
           }
-          renderPresets();
-          renderBasketSummary();
-          initReturnDateTime(2);
         } catch (err) {
           console.error(err);
         }
+        return { completedTransaction: null };
       }
 
-      function renderBasketSummary() {
-        const total = basketItems.reduce((s, i) => s + i.quantity, 0);
-        document.getElementById('basket-summary-count').textContent = `${total} Unit${total === 1 ? '' : 's'}`;
+      async function initCheckoutPage() {
+        const [sessionResult, authResult] = await Promise.all([
+          fetchCheckoutSessionDetails(),
+          verifyStudentToken(),
+        ]);
 
-        document.getElementById('basket-summary-items').innerHTML = basketItems
-          .map(
-            (item) => `
-            <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
-              <div class="flex items-center justify-between gap-2.5">
-                <img src="${item.image_url || `/images/equipment/${item.qr_code}.svg`}" alt="${item.name}" class="w-10 h-10 object-contain bg-white rounded-lg border border-slate-200 p-1 shrink-0" />
-                <div class="min-w-0 flex-1">
-                  <p class="text-xs font-bold text-slate-900 truncate">${item.name}</p>
-                  <p class="text-[10px] font-mono text-slate-500">${item.storage_compartment}</p>
-                </div>
-                <span class="font-mono text-xs font-bold text-[#003087] shrink-0">${item.quantity}×</span>
-              </div>
-              <p class="text-[11px] text-slate-600 leading-snug bg-white p-2 rounded-lg border border-slate-100">
-                <strong class="text-[#003087]">How to use:</strong> ${getHowToUseText(item)}
-              </p>
-            </div>
-          `
-          )
-          .join('');
+        if (sessionResult.completedTransaction) {
+          showCompletedReceipt(sessionResult.completedTransaction);
+          return;
+        }
+
+        if (authResult.ok && authResult.student) {
+          showAuthenticatedCheckoutView(authResult.student);
+        } else {
+          showLoginGateView();
+          if (authResult.status) {
+            showLoginStatusError(authResult.status, authResult.error, authResult.rejection_reason);
+          }
+        }
+      }
+
+      async function handleStudentGateLogin(e) {
+        e.preventDefault();
+        hideLoginError();
+
+        const identifier = (document.getElementById('login-identifier').value || '').trim();
+        const password = document.getElementById('login-password').value || '';
+        const btn = document.getElementById('login-submit-btn');
+
+        if (!identifier || !password) {
+          showLoginStatusError('', 'Please enter your Student ID / LRN (or School Email) and password.');
+          return;
+        }
+
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Verifying Account...';
+        }
+
+        try {
+          const res = await fetch('/api/students/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, password }),
+          });
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok || !data.token || !data.student) {
+            showLoginStatusError(
+              data.account_status || '',
+              data.error || 'Invalid Student ID / Email or password.',
+              data.rejection_reason || ''
+            );
+            return;
+          }
+
+          setStudentToken(data.token);
+          document.getElementById('login-password').value = '';
+
+          // If this QR session was already completed by this student, load the receipt directly
+          if (sessionStatus === 'completed') {
+            const refreshed = await fetchCheckoutSessionDetails();
+            if (refreshed.completedTransaction) {
+              showCompletedReceipt(refreshed.completedTransaction);
+              return;
+            }
+          }
+
+          showAuthenticatedCheckoutView(data.student);
+        } catch {
+          showLoginStatusError('', 'Network error while connecting to LabGuard+. Check your lab Wi-Fi connection.');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Sign In & Continue Checkout →';
+          }
+        }
+      }
+
+      async function handleStudentSwitchAccount() {
+        const token = getStudentToken();
+        if (token) {
+          try {
+            await fetch('/api/students/logout', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+          } catch {
+            // best-effort logout
+          }
+        }
+        setStudentToken('');
+        currentStudent = null;
+        hideLoginError();
+        const pwInput = document.getElementById('login-password');
+        if (pwInput) pwInput.value = '';
+        showLoginGateView();
+        const idInput = document.getElementById('login-identifier');
+        if (idInput) idInput.focus();
       }
 
       async function submitStudentCheckoutForm(e) {
@@ -640,45 +1103,212 @@
         const errBox = document.getElementById('form-error-box');
         errBox.classList.add('hidden');
 
+        const token = getStudentToken();
+        if (!token) {
+          showLoginGateView();
+          showLoginStatusError('', 'Please sign in with your verified student account to complete checkout.');
+          return;
+        }
+
+        if (!isReturnTimeValid) {
+          errBox.textContent = 'Please choose a future return date and time before confirming checkout.';
+          errBox.classList.remove('hidden');
+          return;
+        }
+
+        const subjectActivity = (document.getElementById('subject-activity').value || '').trim();
+        const teacherName = (document.getElementById('teacher-name').value || '').trim();
+        const pledgeChecked = document.getElementById('safety-pledge').checked;
+
+        if (!subjectActivity || !teacherName) {
+          errBox.textContent = 'Please enter both your Science Subject & Lab Activity and Supervising Teacher.';
+          errBox.classList.remove('hidden');
+          return;
+        }
+
+        const checkedPrereqs = pledgeChecked
+          ? Array.from(
+              new Set(
+                basketItems.flatMap((item) =>
+                  Array.isArray(item.prerequisites) ? item.prerequisites.filter(Boolean) : []
+                )
+              )
+            )
+          : [];
+
         const payload = {
-          student_name: document.getElementById('student-name').value.trim(),
-          student_id_lrn: document.getElementById('student-lrn').value.trim(),
-          grade_section: document.getElementById('grade-section').value,
-          school_email: document.getElementById('school-email').value.trim(),
-          subject_activity: document.getElementById('subject-activity').value.trim(),
-          teacher_name: document.getElementById('teacher-name').value.trim(),
+          subject_activity: subjectActivity,
+          teacher_name: teacherName,
           expected_return_hours: selectedHours,
           basket_items: basketItems,
+          safety_prerequisites_checked: checkedPrereqs,
         };
 
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Confirming Verified Checkout...';
+        }
+
         try {
-          const res = await fetch(`/api/kiosk/checkout-session/${sessionToken}/complete`, {
+          const res = await fetch(`/api/kiosk/checkout-session/${encodeURIComponent(sessionToken)}/complete`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify(payload),
           });
-          const data = await res.json();
+          const data = await res.json().catch(() => ({}));
+
+          if (res.status === 401) {
+            setStudentToken('');
+            currentStudent = null;
+            showLoginGateView();
+            showLoginStatusError('', data.error || 'Your student session expired. Please sign in again.');
+            return;
+          }
+
+          if (res.status === 403 && data.account_status) {
+            setStudentToken('');
+            currentStudent = null;
+            showLoginGateView();
+            showLoginStatusError(data.account_status, data.error, data.rejection_reason);
+            return;
+          }
+
           if (!res.ok || !data.transaction) {
-            errBox.textContent = data.error || 'Failed to log student transaction.';
+            errBox.textContent = data.error || 'Failed to complete verified checkout.';
             errBox.classList.remove('hidden');
             return;
           }
+
           showCompletedReceipt(data.transaction);
-        } catch (err) {
-          errBox.textContent = 'Network error while saving student information.';
+        } catch {
+          errBox.textContent = 'Network error while saving verified checkout. Please check lab Wi-Fi.';
           errBox.classList.remove('hidden');
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Confirm Verified Checkout →';
+          }
         }
       }
 
+      function renderReceiptInstructions(items) {
+        const container = document.getElementById('receipt-instructions-list');
+        if (!container) return;
+
+        if (!Array.isArray(items) || items.length === 0) {
+          container.innerHTML =
+            '<p class="text-xs text-slate-500">No apparatus instructions found for this checkout.</p>';
+          return;
+        }
+
+        container.innerHTML = items
+          .map((item) => {
+            const steps = getUsageSteps(item);
+            const precautions = getSafetyPrecautions(item);
+            const imgSrc = item.image_url || `/images/equipment/${item.qr_code}.svg`;
+            const isCaution = item.safety_level === 'CAUTION';
+
+            return `
+              <details open class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <summary class="p-3 bg-slate-50/90 hover:bg-slate-100/80 cursor-pointer flex items-center justify-between gap-2.5 select-none">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <img
+                      src="${escapeHtml(imgSrc)}"
+                      alt="${escapeHtml(item.name)}"
+                      class="w-10 h-10 object-contain bg-white rounded-lg border border-slate-200 p-1 shrink-0"
+                    />
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="px-1.5 py-0.5 rounded bg-[#003087] text-white font-mono text-[10px] font-bold">
+                          ${Number(item.quantity || 1)}×
+                        </span>
+                        <span class="text-xs font-extrabold text-slate-900 font-heading truncate">
+                          ${escapeHtml(item.name)}
+                        </span>
+                      </div>
+                      <div class="flex items-center gap-1.5 flex-wrap mt-1 text-[10px] font-mono">
+                        <span class="text-[#003087] font-bold">${escapeHtml(item.qr_code || '')}</span>
+                        ${
+                          item.storage_compartment
+                            ? `<span class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-600">${escapeHtml(item.storage_compartment)}</span>`
+                            : ''
+                        }
+                        <span class="px-1.5 py-0.5 rounded font-bold ${isCaution ? 'bg-amber-100 text-amber-900' : 'bg-emerald-50 text-[#16A34A]'}">
+                          ${isCaution ? '▲ CAUTION' : '● SAFE'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <span class="font-mono text-[10px] font-bold text-slate-500 px-2 py-0.5 rounded bg-white border border-slate-200 shrink-0">
+                    Guide
+                  </span>
+                </summary>
+
+                <div class="p-3 space-y-3 border-t border-slate-100">
+                  <!-- Section A: Proper / General Use Instructions -->
+                  <div class="space-y-1.5">
+                    <p class="text-[10px] font-mono font-extrabold uppercase tracking-wider text-[#003087] flex items-center gap-1.5">
+                      <span class="w-1.5 h-1.5 rounded-full bg-[#003087]"></span>
+                      Proper / General Use Instructions
+                    </p>
+                    <ol class="space-y-1.5">
+                      ${steps
+                        .map(
+                          (step, idx) => `
+                          <li class="flex items-start gap-2 text-[11px] text-slate-700 leading-snug">
+                            <span class="w-4 h-4 rounded-full bg-blue-100 text-[#003087] font-mono text-[10px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">
+                              ${idx + 1}
+                            </span>
+                            <span>${escapeHtml(step)}</span>
+                          </li>
+                        `
+                        )
+                        .join('')}
+                    </ol>
+                  </div>
+
+                  <!-- Section B: Safety Precautions Before Use -->
+                  <div class="p-2.5 bg-amber-50/90 border border-amber-200 rounded-xl space-y-1.5">
+                    <p class="text-[10px] font-mono font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                      <span>▲</span>
+                      Safety Precautions Before Use
+                    </p>
+                    <ul class="space-y-1">
+                      ${precautions
+                        .map(
+                          (prec) => `
+                          <li class="flex items-start gap-2 text-[11px] text-amber-950 leading-snug font-medium">
+                            <span class="text-amber-700 font-bold shrink-0 mt-0.5">✓</span>
+                            <span>${escapeHtml(prec)}</span>
+                          </li>
+                        `
+                        )
+                        .join('')}
+                    </ul>
+                  </div>
+                </div>
+              </details>
+            `;
+          })
+          .join('');
+      }
+
       function showCompletedReceipt(tx) {
+        document.getElementById('checkout-loading-box').classList.add('hidden');
+        document.getElementById('student-login-gate').classList.add('hidden');
         document.getElementById('form-workspace').classList.add('hidden');
+
         const box = document.getElementById('completed-receipt-box');
         box.classList.remove('hidden');
         box.classList.remove('animate-receipt-pop');
-        void box.offsetWidth; // trigger reflow
+        void box.offsetWidth;
         box.classList.add('animate-receipt-pop');
 
-        // Re-trigger checkmark and sparkle animations cleanly
+        // Re-trigger checkmark animations cleanly
         const circle = box.querySelector('.check-circle-pop');
         const path = box.querySelector('.check-svg-path');
         if (circle) {
@@ -699,24 +1329,36 @@
             ? `${dueDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
             : 'Scheduled with Lab Counter';
 
-        document.getElementById('receipt-code').textContent = `Pass Code: ${tx.transaction_code}`;
+        const checkedOutSummary = (tx.items || [])
+          .map((i) => `${Number(i.quantity || 1)}× ${i.name}`)
+          .join(', ');
+
+        document.getElementById('receipt-code').textContent = `Pass Code: ${tx.transaction_code || ''}`;
         document.getElementById('receipt-details').innerHTML = `
-          <p><strong>Student:</strong> ${tx.student_name}</p>
-          <p><strong>ID / Dept:</strong> ${tx.student_id_lrn} · ${tx.grade_section}</p>
-          <p><strong>Subject:</strong> ${tx.subject_activity}</p>
-          <p><strong>Teacher:</strong> ${tx.teacher_name}</p>
-          <p><strong>Due Back:</strong> ${dueFormatted}</p>
-          <p><strong>Checked Out:</strong> ${(tx.items || []).map((i) => `${i.quantity}× ${i.name}`).join(', ')}</p>
+          <p><strong>Verified Student:</strong> ${escapeHtml(tx.student_name || '')} <span class="text-[#16A34A] font-bold">✓</span></p>
+          <p><strong>ID / Strand:</strong> <span class="font-mono">${escapeHtml(tx.student_id_lrn || '')}</span> · ${escapeHtml(tx.grade_section || '')}</p>
+          ${tx.school_email ? `<p><strong>School Email:</strong> <span class="font-mono text-[11px]">${escapeHtml(tx.school_email)}</span></p>` : ''}
+          <p><strong>Subject:</strong> ${escapeHtml(tx.subject_activity || '')}</p>
+          <p><strong>Teacher:</strong> ${escapeHtml(tx.teacher_name || '')}</p>
+          <p><strong>Due Back:</strong> <span class="font-mono text-[#003087] font-bold">${escapeHtml(dueFormatted)}</span></p>
+          <p><strong>Checked Out:</strong> ${escapeHtml(checkedOutSummary)}</p>
         `;
+
+        renderReceiptInstructions(tx.items || []);
+        box.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
-      loadCheckoutSession();
+      initCheckoutPage();
     </script>
 
     <!-- Discreet Prototype Route Helper (Desktop preview only — hidden on mobile phones) -->
     <div id="proto-route-helper" class="hidden sm:flex fixed bottom-3 right-3 z-50 bg-slate-900/90 text-white border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg items-center gap-2.5">
       <span class="font-mono text-[11px] text-slate-400">Preview Routes:</span>
       <a href="/kiosk" class="font-medium text-white hover:text-[#F5A623] underline">kiosk.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/register" class="font-medium text-white hover:text-[#F5A623] underline">student_register.html</a>
+      <span class="text-slate-600">·</span>
+      <a href="/student/account" class="font-medium text-white hover:text-[#F5A623] underline">student_account.html</a>
       <span class="text-slate-600">·</span>
       <a href="/student/checkout/DEMO-QR" class="font-semibold text-[#F5A623] underline">student_form.html</a>
       <span class="text-slate-600">·</span>

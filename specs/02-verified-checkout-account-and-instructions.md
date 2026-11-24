@@ -1,7 +1,7 @@
 # SPEC-02: Verified Student Checkout, Account Portal & Post-Checkout Embedded Item Instructions
 
 - **Spec ID:** `SPEC-02`
-- **Status:** `DRAFT` *(begins after SPEC-01 is merged)*
+- **Status:** `MERGED`
 - **Target Branch:** `spec/02-verified-checkout-instructions`
 - **Dependencies:** `SPEC-01`
 
@@ -89,10 +89,10 @@
 
 ## 6. Acceptance Criteria (Must Pass Before Merging to `main`)
 
-- [ ] Unauthenticated `POST /api/kiosk/checkout-session/<token>/complete` returns `401`.
-- [ ] Pending/rejected student cannot complete checkout (`403`).
-- [ ] Approved student scans QR → logs in on `/student/checkout/<token>` → completes checkout; server records their verified account details (even if forged fields are sent in JSON).
-- [ ] Confirmed Digital Pass receipt immediately displays the embedded **Proper / General Use Instructions** and **Safety Precautions Before Use** for every borrowed item.
-- [ ] `/student/account` displays the student's active loans with their embedded usage & safety instructions, past history, and working Change Password flow.
-- [ ] Admin can add/edit an equipment item's `usage_instructions` and `prerequisites` and see them appear on the next student checkout receipt.
-- [ ] Kiosk QR modal still auto-closes via WebSocket when the student completes checkout on their phone.
+- [x] Unauthenticated `POST /api/kiosk/checkout-session/<token>/complete` returns `401`.
+- [x] Pending/rejected student cannot complete checkout (`403`).
+- [x] Approved student scans QR → logs in on `/student/checkout/<token>` → completes checkout; server records their verified account details (even if forged fields are sent in JSON).
+- [x] Confirmed Digital Pass receipt immediately displays the embedded **Proper / General Use Instructions** and **Safety Precautions Before Use** for every borrowed item.
+- [x] `/student/account` displays the student's active loans with their embedded usage & safety instructions, past history, and working Change Password flow.
+- [x] Admin can add/edit an equipment item's `usage_instructions` and `prerequisites` and see them appear on the next student checkout receipt.
+- [x] Kiosk QR modal still auto-closes via WebSocket when the student completes checkout on their phone.
