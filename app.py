@@ -36,7 +36,13 @@ from urllib.parse import urlsplit
 
 from flask import Flask, Response, g, jsonify, render_template, request, send_from_directory
 
-from hardware.led_controller import SafetyLEDController
+from hardware.gpio_manager import (
+    BCM_TO_PHYSICAL,
+    BUS_WARNINGS,
+    GPIOManager,
+    get_default_gpio_config,
+    validate_gpio_config,
+)
 
 try:
     import qrcode
@@ -95,8 +101,8 @@ app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"))
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 8 MB max JSON payload for 4 MB base64 images
 sock = Sock(app) if Sock is not None else None
 
-# Hardware GPIO / Simulation LED & Buzzer controller
-led_controller = SafetyLEDController()
+# Hardware GPIO / Simulation 12-Channel Locker + Safety LED & Buzzer manager
+gpio_manager = GPIOManager()
 
 # Thread-safe WebSocket client registries
 _ws_lock = threading.Lock()
@@ -792,7 +798,7 @@ def get_current_safety_status(conn: Optional[sqlite3.Connection] = None) -> Dict
 
 def sync_led_from_db(*, beep_on_change: bool = False) -> Dict[str, Any]:
     status = get_current_safety_status()
-    return led_controller.set_safety_level(status["level"], beep_on_change=beep_on_change)
+    return gpio_manager.set_safety_level(status["level"], beep_on_change=beep_on_change)
 
 
 def _parse_json_str_list(raw: Any) -> list:
@@ -1068,7 +1074,7 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
         cur.execute("DROP TABLE IF EXISTS safety_status")
         cur.execute("DROP TABLE IF EXISTS student_accounts")
         cur.execute("DROP TABLE IF EXISTS student_sessions")
-        # Preserve admin_sessions so active admin is not logged out on demo reset
+        # Preserve admin_sessions and gpio_config so active admin and physical wiring stay intact on demo reset
 
     cur.execute(
         """
@@ -1144,12 +1150,13 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
             return_condition TEXT,
             return_notes TEXT,
             returned_verified_by TEXT,
+            unlocked_lockers_json TEXT,
             status TEXT NOT NULL
         )
         """
     )
 
-    # Auto-migrate existing SQLite databases created before SPEC-02 / SPEC-03
+    # Auto-migrate existing SQLite databases created before SPEC-02 / SPEC-03 / SPEC-04
     eq_cols = {r["name"] for r in cur.execute("PRAGMA table_info(equipment)").fetchall()}
     if "usage_instructions_json" not in eq_cols:
         cur.execute(
@@ -1163,6 +1170,19 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
         cur.execute("ALTER TABLE student_transactions ADD COLUMN student_account_id INTEGER")
     if "returned_verified_by" not in tx_cols:
         cur.execute("ALTER TABLE student_transactions ADD COLUMN returned_verified_by TEXT")
+    if "unlocked_lockers_json" not in tx_cols:
+        cur.execute("ALTER TABLE student_transactions ADD COLUMN unlocked_lockers_json TEXT")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS gpio_config (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            config_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT NOT NULL
+        )
+        """
+    )
 
     cur.execute(
         """
@@ -1297,13 +1317,49 @@ def init_db(force_reset: bool = False, *, beep_on_sync: bool = False) -> None:
             """
         )
 
+    gpio_row = cur.execute("SELECT * FROM gpio_config WHERE id = 1").fetchone()
+    saved_gpio_cfg: Optional[Dict[str, Any]] = None
+    if gpio_row is None:
+        default_gpio_cfg = get_default_gpio_config()
+        cur.execute(
+            """
+            INSERT INTO gpio_config (id, config_json, updated_at, updated_by)
+            VALUES (1, ?, ?, ?)
+            """,
+            (json.dumps(default_gpio_cfg), now_iso, "system_default"),
+        )
+        saved_gpio_cfg = default_gpio_cfg
+    else:
+        try:
+            parsed_cfg = json.loads(gpio_row["config_json"])
+            ok, err, normalized_cfg = validate_gpio_config(parsed_cfg)
+            if ok:
+                saved_gpio_cfg = normalized_cfg
+            else:
+                logger.warning(
+                    "Saved gpio_config row is invalid (%s); falling back to defaults.",
+                    err,
+                )
+                saved_gpio_cfg = get_default_gpio_config()
+        except Exception as exc:
+            logger.warning(
+                "Failed to load saved gpio_config row (%s); falling back to defaults.",
+                exc,
+            )
+            saved_gpio_cfg = get_default_gpio_config()
+
     conn.commit()
     safety_row = conn.execute("SELECT * FROM safety_status WHERE id = 1").fetchone()
     conn.close()
 
     _db_initialized_path = get_db_path()
     safety_level = safety_row["level"] if safety_row else "SAFE"
-    led_controller.set_safety_level(safety_level, beep_on_change=beep_on_sync)
+    try:
+        gpio_manager.apply_config(saved_gpio_cfg or get_default_gpio_config())
+    except Exception as exc:
+        logger.warning("Failed to apply saved gpio_config (%s); applying defaults.", exc)
+        gpio_manager.apply_config(get_default_gpio_config())
+    gpio_manager.set_safety_level(safety_level, beep_on_change=beep_on_sync)
 
 
 # ==============================================================================
@@ -1502,7 +1558,7 @@ def _handle_global_ws(ws: Any) -> None:
             json.dumps({
                 "event": "state_sync",
                 "safety_status": get_current_safety_status(),
-                "hardware": led_controller.get_status(),
+                "hardware": gpio_manager.get_status(),
             })
         )
         while True:
@@ -1822,6 +1878,14 @@ def serialize_transaction(
         if (eq_by_id is not None or eq_by_qr is not None)
         else raw_items
     )
+    unlocked_lockers: list = []
+    if "unlocked_lockers_json" in keys and row["unlocked_lockers_json"]:
+        try:
+            parsed_unlocked = json.loads(row["unlocked_lockers_json"])
+            if isinstance(parsed_unlocked, list):
+                unlocked_lockers = parsed_unlocked
+        except Exception:
+            unlocked_lockers = []
     return {
         "id": row["id"],
         "transaction_code": row["transaction_code"],
@@ -1843,6 +1907,7 @@ def serialize_transaction(
         "returned_verified_by": (
             row["returned_verified_by"] if "returned_verified_by" in keys else None
         ),
+        "unlocked_lockers": unlocked_lockers,
         "status": row["status"],
     }
 
@@ -1857,7 +1922,7 @@ def api_health():
         "lan_url": base_url,
         "kiosk_url": f"{base_url}/kiosk",
         "admin_url": f"{base_url}/admin",
-        "hardware": led_controller.get_status(),
+        "hardware": gpio_manager.get_status(),
         "db_path": get_db_path(),
     })
 
@@ -1866,7 +1931,7 @@ def api_health():
 def api_hardware_status():
     base_url = resolve_public_base_url(request)
     return jsonify({
-        "hardware": led_controller.get_status(),
+        "hardware": gpio_manager.get_status(),
         "lan_url": base_url,
         "kiosk_url": f"{base_url}/kiosk",
         "admin_url": f"{base_url}/admin",
@@ -2003,6 +2068,11 @@ def api_get_checkout_session(token: str):
         completed_tx["items"] = _enrich_items_with_instructions(
             completed_tx["items"], eq_by_id=eq_by_id, eq_by_qr=eq_by_qr
         )
+    unlocked_lockers = (
+        completed_tx.get("unlocked_lockers")
+        if isinstance(completed_tx, dict) and isinstance(completed_tx.get("unlocked_lockers"), list)
+        else []
+    )
 
     return jsonify({
         "session": {
@@ -2014,7 +2084,9 @@ def api_get_checkout_session(token: str):
             "created_at": row["created_at"],
             "expires_at": row["expires_at"],
             "completed_transaction": completed_tx,
+            "unlocked_lockers": unlocked_lockers,
         },
+        "unlocked_lockers": unlocked_lockers,
         "safety_status": serialize_safety_status(safety_row),
         "student_presets": STUDENT_PRESETS,
     })
@@ -2064,6 +2136,11 @@ def api_complete_checkout_session(token: str):
                 "success": True,
                 "transaction": completed_tx,
                 "safety_status": serialize_safety_status(safety_row),
+                "unlocked_lockers": (
+                    completed_tx.get("unlocked_lockers")
+                    if isinstance(completed_tx.get("unlocked_lockers"), list)
+                    else []
+                ),
             })
 
         if safety_row and safety_row["level"] == "UNSAFE":
@@ -2226,15 +2303,44 @@ def api_complete_checkout_session(token: str):
         conn.close()
 
     if safety_dict["level"] != prev_level:
-        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=True)
+        gpio_manager.set_safety_level(
+            safety_dict["level"], beep_on_change=True, source=f"Borrow {tx_code}"
+        )
     else:
-        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=False)
-        led_controller.beep("confirm")
+        gpio_manager.set_safety_level(
+            safety_dict["level"], beep_on_change=False, source=f"Borrow {tx_code}"
+        )
+        gpio_manager.beep("confirm")
+
+    unlocked_lockers = gpio_manager.unlock_for_compartments(
+        [item.get("storage_compartment", "") for item in snapshot_items],
+        source=f"Borrow {tx_code}",
+        trigger_type="borrow",
+    )
+    tx_dict["unlocked_lockers"] = unlocked_lockers
+    hw_status = gpio_manager.get_status()
+
+    if unlocked_lockers:
+        conn_upd = get_db()
+        try:
+            conn_upd.execute(
+                "UPDATE student_transactions SET unlocked_lockers_json = ? WHERE id = ?",
+                (json.dumps(unlocked_lockers), next_id),
+            )
+            if sess_row:
+                conn_upd.execute(
+                    "UPDATE checkout_sessions SET completed_transaction_json = ? WHERE session_token = ?",
+                    (json.dumps(tx_dict), token),
+                )
+            conn_upd.commit()
+        finally:
+            conn_upd.close()
 
     if sess_row:
         broadcast_checkout_update(token, {
             "event": "checkout_completed",
             "transaction": tx_dict,
+            "unlocked_lockers": unlocked_lockers,
         })
 
     broadcast_global_update({
@@ -2242,12 +2348,14 @@ def api_complete_checkout_session(token: str):
         "transaction": tx_dict,
         "safety_status": safety_dict,
         "hardware": hw_status,
+        "unlocked_lockers": unlocked_lockers,
     })
 
     return jsonify({
         "success": True,
         "transaction": tx_dict,
         "safety_status": safety_dict,
+        "unlocked_lockers": unlocked_lockers,
     }), 201
 
 
@@ -2463,6 +2571,13 @@ def api_get_return_session(token: str):
         elif sess_row["status"] == "completed":
             completed_tx = tx_dict
 
+        unlocked_lockers = (
+            completed_tx.get("unlocked_lockers")
+            if isinstance(completed_tx, dict)
+            and isinstance(completed_tx.get("unlocked_lockers"), list)
+            else []
+        )
+
         response_payload: Dict[str, Any] = {
             "session": {
                 "session_token": sess_row["session_token"],
@@ -2477,7 +2592,9 @@ def api_get_return_session(token: str):
                 "masked_student_name": mask_student_name(tx_dict["student_name"]),
                 "masked_student_id": mask_student_id(tx_dict["student_id_lrn"]),
                 "completed_transaction": completed_tx,
+                "unlocked_lockers": unlocked_lockers,
             },
+            "unlocked_lockers": unlocked_lockers,
             "transaction_preview": _build_transaction_preview(tx_dict),
             "safety_status": safety_dict,
         }
@@ -2580,6 +2697,12 @@ def api_complete_return_session(token: str):
                     "success": True,
                     "transaction": completed_tx,
                     "safety_status": serialize_safety_status(safety_row),
+                    "unlocked_lockers": (
+                        completed_tx.get("unlocked_lockers")
+                        if isinstance(completed_tx, dict)
+                        and isinstance(completed_tx.get("unlocked_lockers"), list)
+                        else []
+                    ),
                 })
 
             expires_dt = _parse_iso_utc(sess_row["expires_at"])
@@ -2650,17 +2773,47 @@ def api_complete_return_session(token: str):
     finally:
         conn.close()
 
+    return_tx_code = tx_dict["transaction_code"]
     if safety_dict["level"] != prev_level:
-        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=True)
+        gpio_manager.set_safety_level(
+            safety_dict["level"], beep_on_change=True, source=f"Return {return_tx_code}"
+        )
     else:
-        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=False)
-        led_controller.beep("caution" if condition in ("Damaged", "Missing") else "confirm")
+        gpio_manager.set_safety_level(
+            safety_dict["level"], beep_on_change=False, source=f"Return {return_tx_code}"
+        )
+        gpio_manager.beep("caution" if condition in ("Damaged", "Missing") else "confirm")
+
+    unlocked_lockers = gpio_manager.unlock_for_compartments(
+        [item.get("storage_compartment", "") for item in (tx_dict.get("items") or [])],
+        source=f"Return {return_tx_code}",
+        trigger_type="return",
+    )
+    tx_dict["unlocked_lockers"] = unlocked_lockers
+    hw_status = gpio_manager.get_status()
+
+    if unlocked_lockers:
+        conn_upd = get_db()
+        try:
+            conn_upd.execute(
+                "UPDATE student_transactions SET unlocked_lockers_json = ? WHERE id = ?",
+                (json.dumps(unlocked_lockers), tx_dict["id"]),
+            )
+            if sess_row is not None:
+                conn_upd.execute(
+                    "UPDATE return_sessions SET completed_transaction_json = ? WHERE session_token = ?",
+                    (json.dumps(tx_dict), clean_token),
+                )
+            conn_upd.commit()
+        finally:
+            conn_upd.close()
 
     if sess_row is not None:
         broadcast_return_update(clean_token, {
             "event": "return_completed",
             "transaction": tx_dict,
             "safety_status": safety_dict,
+            "unlocked_lockers": unlocked_lockers,
         })
 
     broadcast_global_update({
@@ -2668,12 +2821,14 @@ def api_complete_return_session(token: str):
         "transaction": tx_dict,
         "safety_status": safety_dict,
         "hardware": hw_status,
+        "unlocked_lockers": unlocked_lockers,
     })
 
     return jsonify({
         "success": True,
         "transaction": tx_dict,
         "safety_status": safety_dict,
+        "unlocked_lockers": unlocked_lockers,
     })
 
 
@@ -2716,10 +2871,14 @@ def api_return_equipment():
         conn.close()
 
     if safety_dict["level"] != prev_level:
-        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=True)
+        hw_status = gpio_manager.set_safety_level(
+            safety_dict["level"], beep_on_change=True, source=f"Admin Return {tx_dict['transaction_code']}"
+        )
     else:
-        hw_status = led_controller.set_safety_level(safety_dict["level"], beep_on_change=False)
-        led_controller.beep("caution" if condition in ("Damaged", "Missing") else "confirm")
+        hw_status = gpio_manager.set_safety_level(
+            safety_dict["level"], beep_on_change=False, source=f"Admin Return {tx_dict['transaction_code']}"
+        )
+        gpio_manager.beep("caution" if condition in ("Damaged", "Missing") else "confirm")
 
     broadcast_global_update({
         "event": "data_updated",
@@ -3467,7 +3626,7 @@ def api_add_equipment():
     broadcast_global_update({
         "event": "data_updated",
         "safety_status": safety_dict,
-        "hardware": led_controller.get_status(),
+        "hardware": gpio_manager.get_status(),
     })
 
     return jsonify({"equipment": eq_dict}), 201
@@ -3486,7 +3645,7 @@ def api_modify_equipment(item_id: int):
             broadcast_global_update({
                 "event": "data_updated",
                 "safety_status": safety_dict,
-                "hardware": led_controller.get_status(),
+                "hardware": gpio_manager.get_status(),
             })
             return jsonify({"success": True})
 
@@ -3590,7 +3749,7 @@ def api_modify_equipment(item_id: int):
     broadcast_global_update({
         "event": "data_updated",
         "safety_status": safety_dict,
-        "hardware": led_controller.get_status(),
+        "hardware": gpio_manager.get_status(),
     })
     return jsonify({"equipment": eq_dict})
 
@@ -3626,7 +3785,9 @@ def api_update_safety_status():
     finally:
         conn.close()
 
-    hw_status = led_controller.set_safety_level(level, beep_on_change=True)
+    hw_status = gpio_manager.set_safety_level(
+        level, beep_on_change=True, source=f"Admin: {updated_by}"
+    )
 
     broadcast_global_update({
         "event": "data_updated",
@@ -3637,6 +3798,269 @@ def api_update_safety_status():
     return jsonify({"safety_status": safety_dict})
 
 
+# ==============================================================================
+# SPEC-04: TECHNICAL RASPBERRY PI 2/3/4/5 12-CHANNEL LOCKER & LED GPIO ENDPOINTS
+# ==============================================================================
+def _build_gpio_admin_response(req: Any) -> Dict[str, Any]:
+    base_url = resolve_public_base_url(req)
+    return {
+        **gpio_manager.get_full_state(),
+        "lan_url": base_url,
+        "kiosk_url": f"{base_url}/kiosk",
+        "admin_url": f"{base_url}/admin",
+    }
+
+
+def _persist_gpio_config(config_obj: Dict[str, Any], updated_by: str) -> None:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO gpio_config (id, config_json, updated_at, updated_by)
+            VALUES (1, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                config_json = excluded.config_json,
+                updated_at = excluded.updated_at,
+                updated_by = excluded.updated_by
+            """,
+            (json.dumps(config_obj), now_iso, updated_by),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@app.route("/api/admin/gpio-config", methods=["GET"])
+@require_admin_auth()
+def api_admin_get_gpio_config():
+    return jsonify(_build_gpio_admin_response(request))
+
+
+@app.route("/api/admin/gpio-config", methods=["PUT"])
+@require_admin_auth()
+def api_admin_update_gpio_config():
+    admin = g.admin_session
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid JSON payload for GPIO configuration."}), 400
+
+    candidate = data["config"] if isinstance(data.get("config"), dict) else data
+    ok, err, normalized = validate_gpio_config(candidate)
+    if not ok:
+        return jsonify({"error": err}), 400
+
+    updated_by = admin.get("name") or admin.get("email") or "Administrator"
+    try:
+        gpio_manager.apply_config(normalized, source=f"Admin: {updated_by}")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    _persist_gpio_config(normalized, updated_by)
+
+    broadcast_global_update({
+        "event": "gpio_updated",
+        "hardware": gpio_manager.get_status(),
+    })
+    return jsonify(_build_gpio_admin_response(request))
+
+
+@app.route("/api/admin/gpio-config/reset", methods=["POST"])
+@require_admin_auth()
+def api_admin_reset_gpio_config():
+    admin = g.admin_session
+    default_cfg = get_default_gpio_config()
+    updated_by = f"Reset by {admin.get('name') or admin.get('email') or 'Administrator'}"
+
+    gpio_manager.apply_config(default_cfg, source=updated_by)
+    _persist_gpio_config(default_cfg, updated_by)
+
+    broadcast_global_update({
+        "event": "gpio_updated",
+        "hardware": gpio_manager.get_status(),
+    })
+    return jsonify(_build_gpio_admin_response(request))
+
+
+@app.route("/api/admin/gpio/test-locker", methods=["POST"])
+@require_admin_auth()
+def api_admin_gpio_test_locker():
+    admin = g.admin_session
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid JSON payload."}), 400
+
+    raw_locker_id = data.get("locker_id")
+    try:
+        if isinstance(raw_locker_id, bool) or raw_locker_id is None:
+            raise ValueError("Invalid locker_id")
+        locker_id = int(raw_locker_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "locker_id must be a valid integer."}), 400
+
+    action = str(data.get("action") or "").strip().lower()
+    if action not in ("pulse", "unlock", "lock", "high", "low"):
+        return (
+            jsonify({"error": "action must be one of: pulse, unlock, lock, high, low."}),
+            400,
+        )
+
+    duration_seconds: Optional[float] = None
+    if (
+        "duration_seconds" in data
+        and data["duration_seconds"] is not None
+        and data["duration_seconds"] != ""
+    ):
+        try:
+            if isinstance(data["duration_seconds"], bool):
+                raise ValueError("bool")
+            duration_seconds = float(data["duration_seconds"])
+            if not math.isfinite(duration_seconds) or duration_seconds <= 0:
+                raise ValueError("non-positive")
+        except (TypeError, ValueError):
+            return jsonify({"error": "duration_seconds must be a positive number."}), 400
+
+    source = f"Admin: {admin.get('name') or admin.get('email') or 'Administrator'}"
+    try:
+        locker = gpio_manager.control_locker(
+            locker_id,
+            action,
+            duration_seconds=duration_seconds,
+            source=source,
+        )
+    except KeyError as exc:
+        msg = str(exc).strip("'\"") or f"Locker #{locker_id} not found."
+        return jsonify({"error": msg}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    broadcast_global_update({
+        "event": "gpio_updated",
+        "hardware": gpio_manager.get_status(),
+    })
+    return jsonify({
+        "success": True,
+        "locker": locker,
+        "gpio": gpio_manager.get_full_state(),
+    })
+
+
+@app.route("/api/admin/gpio/test-led", methods=["POST"])
+@require_admin_auth()
+def api_admin_gpio_test_led():
+    admin = g.admin_session
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid JSON payload."}), 400
+
+    channel = str(data.get("channel") or "").strip().lower()
+    if channel not in ("green", "yellow", "red", "buzzer"):
+        return jsonify({"error": "channel must be one of: green, yellow, red, buzzer."}), 400
+
+    action = str(data.get("action") or "pulse").strip().lower()
+    if action not in ("pulse", "high", "low"):
+        return jsonify({"error": "action must be one of: pulse, high, low."}), 400
+
+    duration_seconds = 1.0
+    if (
+        "duration_seconds" in data
+        and data["duration_seconds"] is not None
+        and data["duration_seconds"] != ""
+    ):
+        try:
+            if isinstance(data["duration_seconds"], bool):
+                raise ValueError("bool")
+            duration_seconds = float(data["duration_seconds"])
+            if not math.isfinite(duration_seconds) or duration_seconds <= 0:
+                raise ValueError("non-positive")
+        except (TypeError, ValueError):
+            return jsonify({"error": "duration_seconds must be a positive number."}), 400
+
+    source = f"Admin: {admin.get('name') or admin.get('email') or 'Administrator'}"
+    try:
+        result = gpio_manager.control_led_channel(
+            channel,
+            action,
+            duration_seconds=duration_seconds,
+            source=source,
+        )
+    except KeyError as exc:
+        msg = str(exc).strip("'\"") or f"LED channel '{channel}' not found."
+        return jsonify({"error": msg}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    broadcast_global_update({
+        "event": "gpio_updated",
+        "hardware": gpio_manager.get_status(),
+    })
+    return jsonify({
+        "success": True,
+        "result": result,
+        "gpio": gpio_manager.get_full_state(),
+    })
+
+
+@app.route("/api/admin/gpio/unlock-all", methods=["POST"])
+@require_admin_auth()
+def api_admin_gpio_unlock_all():
+    admin = g.admin_session
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid JSON payload."}), 400
+
+    duration_seconds: Optional[float] = None
+    if (
+        "duration_seconds" in data
+        and data["duration_seconds"] is not None
+        and data["duration_seconds"] != ""
+    ):
+        try:
+            if isinstance(data["duration_seconds"], bool):
+                raise ValueError("bool")
+            duration_seconds = float(data["duration_seconds"])
+            if not math.isfinite(duration_seconds) or duration_seconds <= 0:
+                raise ValueError("non-positive")
+        except (TypeError, ValueError):
+            return jsonify({"error": "duration_seconds must be a positive number."}), 400
+
+    source = f"Admin Emergency: {admin.get('name') or admin.get('email') or 'Administrator'}"
+    try:
+        unlocked = gpio_manager.unlock_all_lockers(
+            duration_seconds=duration_seconds,
+            source=source,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    broadcast_global_update({
+        "event": "gpio_updated",
+        "hardware": gpio_manager.get_status(),
+    })
+    return jsonify({
+        "success": True,
+        "unlocked": unlocked,
+        "gpio": gpio_manager.get_full_state(),
+    })
+
+
+@app.route("/api/admin/gpio/lock-all", methods=["POST"])
+@require_admin_auth()
+def api_admin_gpio_lock_all():
+    admin = g.admin_session
+    source = f"Admin Relock All: {admin.get('name') or admin.get('email') or 'Administrator'}"
+    locked = gpio_manager.lock_all_lockers(source=source)
+    broadcast_global_update({
+        "event": "gpio_updated",
+        "hardware": gpio_manager.get_status(),
+    })
+    return jsonify({
+        "success": True,
+        "locked": locked,
+        "gpio": gpio_manager.get_full_state(),
+    })
+
+
 @app.route("/api/reset", methods=["POST"])
 @require_admin_auth()
 def api_reset():
@@ -3645,7 +4069,7 @@ def api_reset():
     broadcast_global_update({
         "event": "data_updated",
         "safety_status": safety_dict,
-        "hardware": led_controller.get_status(),
+        "hardware": gpio_manager.get_status(),
     })
     broadcast_global_update({"event": "accounts_updated"})
     return jsonify({"success": True})
@@ -3655,7 +4079,7 @@ if __name__ == "__main__":
     init_db(force_reset=False, beep_on_sync=False)
     port = get_server_port()
     base_url = resolve_public_base_url(None)
-    hw = led_controller.get_status()
+    hw = gpio_manager.get_status()
     print(f"LabGuard+ Python Flask Server running on http://0.0.0.0:{port}")
     print(f"  -> LAN Base URL:        {base_url}")
     print(f"  -> Student Kiosk UI:    {base_url}/kiosk")
@@ -3664,6 +4088,6 @@ if __name__ == "__main__":
     print(f"  -> Admin Dashboard UI:  {base_url}/admin")
     print(f"  -> SQLite Database:     {get_db_path()}")
     print(f"  -> ID Photos Directory: {get_id_photos_dir()}")
-    print(f"  -> Hardware LED Mode:   {hw['hardware_mode']} ({hw['note']})")
+    print(f"  -> Hardware GPIO Mode:  {hw['hardware_mode']} ({hw['note']})")
     print(f"  -> WebSockets:          {'enabled (flask-sock)' if sock is not None else 'disabled (polling fallback)'}")
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

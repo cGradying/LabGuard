@@ -522,6 +522,12 @@
             class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5 font-medium"
           ></div>
 
+          <!-- UNLOCKED LOCKER COMPARTMENTS CALLOUT (GPIO AUTO-UNLOCK) -->
+          <section
+            id="receipt-unlocked-lockers"
+            class="hidden bg-emerald-50 border-2 border-emerald-400 rounded-2xl p-3.5 space-y-2.5 shadow-2xs"
+          ></section>
+
           <!-- HIGHLIGHTED EMBEDDED APPARATUS INSTRUCTIONS & SAFETY PRECAUTIONS -->
           <section class="bg-blue-50/75 border-2 border-[#003087]/25 rounded-2xl p-3.5 space-y-3">
             <div class="flex items-start justify-between gap-2 border-b border-blue-200/80 pb-2.5">
@@ -961,10 +967,18 @@
               sessionStatus = data.session.status || 'pending_student_info';
               basketItems = data.session.basket_items || [];
               if (data.session.status === 'completed' && data.session.completed_transaction) {
-                return { completedTransaction: data.session.completed_transaction };
+                const unlocked =
+                  Array.isArray(data.unlocked_lockers)
+                    ? data.unlocked_lockers
+                    : Array.isArray(data.session.unlocked_lockers)
+                      ? data.session.unlocked_lockers
+                      : Array.isArray(data.session.completed_transaction.unlocked_lockers)
+                        ? data.session.completed_transaction.unlocked_lockers
+                        : [];
+                return { completedTransaction: data.session.completed_transaction, unlockedLockers: unlocked };
               }
             }
-            return { completedTransaction: null };
+            return { completedTransaction: null, unlockedLockers: [] };
           }
 
           // Fallback for DEMO-QR / direct preview route
@@ -1004,7 +1018,7 @@
         ]);
 
         if (sessionResult.completedTransaction) {
-          showCompletedReceipt(sessionResult.completedTransaction);
+          showCompletedReceipt(sessionResult.completedTransaction, sessionResult.unlockedLockers || []);
           return;
         }
 
@@ -1060,7 +1074,7 @@
           if (sessionStatus === 'completed') {
             const refreshed = await fetchCheckoutSessionDetails();
             if (refreshed.completedTransaction) {
-              showCompletedReceipt(refreshed.completedTransaction);
+              showCompletedReceipt(refreshed.completedTransaction, refreshed.unlockedLockers || []);
               return;
             }
           }
@@ -1183,7 +1197,13 @@
             return;
           }
 
-          showCompletedReceipt(data.transaction);
+          const unlocked =
+            Array.isArray(data.unlocked_lockers)
+              ? data.unlocked_lockers
+              : data.transaction && Array.isArray(data.transaction.unlocked_lockers)
+                ? data.transaction.unlocked_lockers
+                : [];
+          showCompletedReceipt(data.transaction, unlocked);
         } catch {
           errBox.textContent = 'Network error while saving verified checkout. Please check lab Wi-Fi.';
           errBox.classList.remove('hidden');
@@ -1297,7 +1317,66 @@
           .join('');
       }
 
-      function showCompletedReceipt(tx) {
+      function renderReceiptUnlockedLockers(unlockedLockers) {
+        const container = document.getElementById('receipt-unlocked-lockers');
+        if (!container) return;
+
+        if (!Array.isArray(unlockedLockers) || unlockedLockers.length === 0) {
+          container.classList.add('hidden');
+          container.innerHTML = '';
+          return;
+        }
+
+        container.innerHTML = `
+          <div class="flex items-start gap-2.5">
+            <span class="w-8 h-8 rounded-xl bg-[#16A34A] text-white flex items-center justify-center text-base shrink-0 shadow-xs">🔓</span>
+            <div class="min-w-0">
+              <p class="text-[10px] font-mono font-extrabold uppercase tracking-wider text-emerald-800">
+                Smart Cabinet Lock Released
+              </p>
+              <h3 class="text-xs font-extrabold text-emerald-950 font-heading leading-snug mt-0.5">
+                🔓 Locker Compartment(s) Unlocked — Retrieve your apparatus now and close the door firmly:
+              </h3>
+            </div>
+          </div>
+          <div class="space-y-1.5">
+            ${unlockedLockers
+              .map((l) => {
+                const name = l.name || (l.id ? `Locker ${l.id}` : 'Locker');
+                const comp = l.compartment || 'Assigned Compartment';
+                const pinMeta =
+                  l.bcm_pin !== null && l.bcm_pin !== undefined
+                    ? `BCM ${l.bcm_pin}${l.physical_pin ? ` · Pin ${l.physical_pin}` : ''}`
+                    : '';
+                const pulseMeta = l.pulse_seconds ? `${Number(l.pulse_seconds)}s pulse` : '';
+                return `
+                  <div class="p-2.5 bg-white border border-emerald-300 rounded-xl flex items-center justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-xs font-extrabold text-slate-900 font-heading truncate">${escapeHtml(name)}</p>
+                      <p class="text-[11px] font-mono font-semibold text-emerald-800 truncate">${escapeHtml(comp)}</p>
+                    </div>
+                    <div class="text-right shrink-0 space-y-0.5">
+                      ${
+                        pinMeta
+                          ? `<span class="block px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 font-mono text-[10px] font-bold text-emerald-900">${escapeHtml(pinMeta)}</span>`
+                          : ''
+                      }
+                      ${
+                        pulseMeta
+                          ? `<span class="block font-mono text-[10px] text-slate-500">${escapeHtml(pulseMeta)}</span>`
+                          : ''
+                      }
+                    </div>
+                  </div>
+                `;
+              })
+              .join('')}
+          </div>
+        `;
+        container.classList.remove('hidden');
+      }
+
+      function showCompletedReceipt(tx, unlockedLockers = []) {
         document.getElementById('checkout-loading-box').classList.add('hidden');
         document.getElementById('student-login-gate').classList.add('hidden');
         document.getElementById('form-workspace').classList.add('hidden');
@@ -1344,6 +1423,13 @@
           <p><strong>Checked Out:</strong> ${escapeHtml(checkedOutSummary)}</p>
         `;
 
+        const lockers =
+          Array.isArray(unlockedLockers) && unlockedLockers.length > 0
+            ? unlockedLockers
+            : tx && Array.isArray(tx.unlocked_lockers)
+              ? tx.unlocked_lockers
+              : [];
+        renderReceiptUnlockedLockers(lockers);
         renderReceiptInstructions(tx.items || []);
         box.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
