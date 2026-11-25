@@ -1,7 +1,7 @@
 # SPEC-05: Raspberry Pi 2/3 Installer Tuning & Beginner/Student Step-by-Step README
 
 - **Spec ID:** `SPEC-05`
-- **Status:** `DRAFT` *(begins after SPEC-04 is merged)*
+- **Status:** `MERGED`
 - **Target Branch:** `spec/05-pi-2-3-installer-readme`
 - **Dependencies:** `SPEC-01`, `SPEC-02`, `SPEC-03`, `SPEC-04`
 
@@ -55,6 +55,6 @@
 
 ## 4. Acceptance Criteria (Must Pass Before Merging to `main`)
 
-- [ ] `bash -n setup_raspberry_pi.sh uninstall_raspberry_pi.sh run_local.sh` passes with 0 errors.
-- [ ] Every GPIO pin, URL, route, env var, and default demo credential documented in `README.md` matches the live codebase 100%.
-- [ ] All 5 specs are verified end-to-end together on `main` and pushed to `cGradying/LabGuard`.
+- [x] `bash -n setup_raspberry_pi.sh uninstall_raspberry_pi.sh run_local.sh` passes with 0 errors.
+- [x] Every GPIO pin, URL, route, env var, and default demo credential documented in `README.md` matches the live codebase 100%.
+- [x] All 5 specs are verified end-to-end together on `main` and pushed to `cGradying/LabGuard`.

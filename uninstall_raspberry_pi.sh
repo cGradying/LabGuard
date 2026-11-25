@@ -3,8 +3,8 @@
 # LabGuard+ — Raspberry Pi Uninstaller
 #
 # Stops and removes labguard.service, Chromium kiosk autostart files, and
-# /opt/labguard. Preserves /var/lib/labguard/labguard.db and /etc/default/labguard
-# unless --purge-data is passed (or confirmed interactively).
+# /opt/labguard. Preserves /var/lib/labguard (labguard.db + id_photos/) and
+# /etc/default/labguard unless --purge-data is passed (or confirmed interactively).
 #
 # Usage:
 #   sudo bash uninstall_raspberry_pi.sh [--purge-data] [-y|--yes]
@@ -23,9 +23,9 @@ Usage:
   sudo bash uninstall_raspberry_pi.sh [OPTIONS]
 
 Options:
-  --purge-data   Also delete /var/lib/labguard (SQLite database) and
+  --purge-data   Also delete /var/lib/labguard (labguard.db + id_photos/) and
                  /etc/default/labguard without prompting.
-  -y, --yes      Non-interactive mode (keeps database unless --purge-data is set).
+  -y, --yes      Non-interactive mode (keeps database & ID photos unless --purge-data is set).
   -h, --help     Show this help message and exit.
 EOF
 }
@@ -128,12 +128,12 @@ else
   echo "    [i] $APP_DIR not found — already removed."
 fi
 
-# 4. Handle persistent database & config
-echo "[4/4] Handling database ($DATA_DIR) and config ($ENV_FILE)..."
+# 4. Handle persistent database, student ID photos & config
+echo "[4/4] Handling persistent data ($DATA_DIR: labguard.db + id_photos/) and config ($ENV_FILE)..."
 DELETE_DATA=$PURGE_DATA
 if (( DELETE_DATA == 0 && ASSUME_YES == 0 )) && [[ -t 0 ]] && [[ -d "$DATA_DIR" || -f "$ENV_FILE" ]]; then
   echo ""
-  read -r -p "    Also permanently delete ${DATA_DIR}/labguard.db and ${ENV_FILE}? [y/N]: " REPLY
+  read -r -p "    Also permanently delete ${DATA_DIR} (labguard.db + id_photos/) and ${ENV_FILE}? [y/N]: " REPLY
   case "${REPLY:-N}" in
     y|Y|yes|YES)
       DELETE_DATA=1
@@ -147,11 +147,15 @@ fi
 if (( DELETE_DATA == 1 )); then
   rm -rf "$DATA_DIR"
   rm -f "$ENV_FILE"
-  echo "    Purged $DATA_DIR and $ENV_FILE."
+  echo "    Purged $DATA_DIR (including labguard.db and id_photos/) and $ENV_FILE."
 else
-  echo "    Preserved database and settings:"
-  [[ -d "$DATA_DIR" ]] && echo "      - $DATA_DIR"
-  [[ -f "$ENV_FILE" ]] && echo "      - $ENV_FILE"
+  echo "    Preserved persistent data and settings:"
+  if [[ -d "$DATA_DIR" ]]; then
+    echo "      - $DATA_DIR (labguard.db + id_photos/)"
+  fi
+  if [[ -f "$ENV_FILE" ]]; then
+    echo "      - $ENV_FILE"
+  fi
   echo "    (Re-run with --purge-data if you want to remove them too.)"
 fi
 
