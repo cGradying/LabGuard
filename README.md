@@ -717,6 +717,9 @@ This software and Raspberry Pi hardware integration are released under a **Priva
 
 ---
 
-<p align="center">
-  <strong>LabGuard+</strong> · Engineered &amp; Licensed under Private Contract by <strong>cGradying</strong> &copy; 2026
-</p>
+<div align="center">
+
+[![Author: cGradying](https://img.shields.io/badge/cGradying-AUTHOR-10B981?style=for-the-badge&labelColor=0B1120)](https://github.com/cGradying)
+[![License: Private Contract](https://img.shields.io/badge/License-Private%20Contract-10B981?style=for-the-badge&labelColor=0B1120)](./LICENSE)
+
+</div>
