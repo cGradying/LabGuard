@@ -708,3 +708,15 @@ Run `raspi-config` and disable display blanking system-wide, then reboot:
 sudo raspi-config
 ```
 Navigate to: **`2 Display Options`** → **`D4 Screen Blanking`** → select **`No`** → **`Finish`** → **`sudo reboot`**.
+
+---
+
+## License & Attribution
+
+This software and Raspberry Pi hardware integration are released under a **Private Contract License — All Rights Reserved** (see [`LICENSE`](./LICENSE)). Unauthorized copying, redistribution, resale, or removal of attribution watermarks is prohibited without prior written permission.
+
+---
+
+<p align="center">
+  <strong>LabGuard+</strong> · Engineered &amp; Licensed under Private Contract by <strong>cGradying</strong> &copy; 2026
+</p>

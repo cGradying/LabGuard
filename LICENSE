@@ -1,0 +1,41 @@
+PRIVATE CONTRACT LICENSE — ALL RIGHTS RESERVED
+Copyright (c) 2026 cGradying
+
+This software, hardware integration, Raspberry Pi automation, documentation,
+and associated visual assets ("the Software") were engineered and customized
+by cGradying under a private development contract for the designated client
+and deployment.
+
+TERMS AND RESTRICTIONS:
+
+1. Private License Grant
+   The commissioning client is granted a non-exclusive, non-transferable,
+   non-sublicensable license to install and operate the Software solely for
+   the specific contracted project and authorized hardware deployment.
+
+2. Prohibited Actions
+   Except as expressly authorized in writing by cGradying, no person or entity
+   may:
+   (a) copy, redistribute, publish, sell, lease, rent, or sublicense the
+       Software or any substantial portion of it to third parties;
+   (b) use the Software, its Raspberry Pi GPIO controller, security workflows,
+       or setup tooling in other commercial, academic, or third-party projects;
+   (c) remove, obscure, or alter any copyright notices, license notices, or
+       cGradying attribution/watermark identifiers embedded in the source code
+       or user interfaces.
+
+3. Ownership & Attribution
+   All intellectual property rights in the custom architecture, security
+   implementation, GPIO locker management, offline UI bundling, scripts, and
+   documentation remain the exclusive property of cGradying unless explicitly
+   transferred by a signed written agreement. Portions derived from upstream
+   open-source libraries remain subject to their respective licenses.
+
+4. Disclaimer of Warranty
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
+   cGradying BE LIABLE FOR ANY CLAIM, DAMAGES, HARDWARE MISWIRING, OR OTHER
+   LIABILITY ARISING FROM THE USE OF THE SOFTWARE.
+
+Contact / Licensor: cGradying (https://github.com/cGradying)

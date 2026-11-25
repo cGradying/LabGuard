@@ -1,6 +1,8 @@
 {
   "name": "labguard-kiosk",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "cGradying",
   "version": "1.0.0",
   "type": "module",
   "scripts": {

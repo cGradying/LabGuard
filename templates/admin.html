@@ -29,9 +29,10 @@
     <!-- =================================================================== -->
     <div
       id="admin-login-screen"
-      class="min-h-screen flex items-center justify-center bg-[#0F172A] px-4 py-12"
+      class="min-h-screen relative flex items-center justify-center bg-[#0F172A] px-4 py-12 overflow-hidden"
     >
-      <div class="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-2xl space-y-6">
+      <div class="cg-watermark-layer cg-watermark-dark" aria-hidden="true"></div>
+      <div class="relative z-10 w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-2xl space-y-6">
         <div class="flex items-center gap-3.5 border-b border-slate-200 pb-5">
           <div class="w-12 h-12 rounded-full overflow-hidden bg-white border border-slate-200 shadow-sm shrink-0 flex items-center justify-center p-0.5">
             <img src="/images/au_seal.jpg" alt="Arellano University Official Seal" class="w-full h-full object-contain" />
@@ -100,6 +101,11 @@
           >
             Auto-Fill Credentials
           </button>
+        </div>
+
+        <div class="cg-signature-footer pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+          <span>Private Contract License © 2026</span>
+          <span class="font-bold text-[#003087]">Built by cGradying</span>
         </div>
       </div>
     </div>
@@ -199,6 +205,9 @@
           >
             Lock / Sign Out of PC Console
           </button>
+          <p class="cg-signature-footer text-[10px] text-slate-500 text-center pt-1">
+            Built by <span class="text-[#F5A623] font-bold">cGradying</span> · Private License
+          </p>
         </div>
       </aside>
 
@@ -986,7 +995,16 @@
             </div>
           </section>
         </main>
+
+        <!-- cGradying Bottom Attribution & Private License Footer -->
+        <footer class="cg-signature-footer shrink-0 bg-white border-t border-slate-200 px-8 py-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+          <span>LabGuard+ Smart Science Laboratory Safety Station · Private Contract License © 2026</span>
+          <span class="font-bold text-[#003087]">Engineered &amp; Licensed by cGradying</span>
+        </footer>
       </div>
+
+      <!-- Subtle Non-Blocking Watermark Layer across Admin Workspace -->
+      <div class="cg-watermark-layer cg-watermark-fixed" aria-hidden="true"></div>
     </div>
 
     <!-- =================================================================== -->
@@ -3818,6 +3836,7 @@ Inspect apparatus condition before starting the experiment</textarea>
           ['OFFICIAL STUDENT EQUIPMENT BORROWING & ACCOUNTABILITY LOG REPORT'],
           [`Report Generated: ${generatedDateStr} at ${generatedTimeStr}`],
           ['Supervising Faculty / Laboratory In-Charge: Ms. Lara Marie Agustin Puertollano'],
+          ['System Engineered & Licensed by: cGradying (Private Contract License © 2026)'],
           [`Summary Metrics: Total Records: ${totalLogs} | Active In-Lab: ${activeCount} | Completed Returns: ${returnedCount} | Overdue Returns: ${overdueCount} | Total Units Borrowed: ${totalUnitsOnLoan}`],
           [], // Empty row separator before table headers
         ];
