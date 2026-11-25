@@ -1,7 +1,7 @@
 # SPEC-04: Raspberry Pi 2 & 3 12-Channel Locker GPIO & Technical Admin Hardware UI
 
 - **Spec ID:** `SPEC-04`
-- **Status:** `DRAFT` *(begins after SPEC-03 is merged)*
+- **Status:** `MERGED`
 - **Target Branch:** `spec/04-pi-2-3-gpio-locker-manager`
 - **Dependencies:** `SPEC-01`, `SPEC-02`, `SPEC-03`
 
@@ -99,9 +99,9 @@ Leaves **I2C (`GPIO 2, 3`)**, **UART (`GPIO 14, 15`)**, **SPI0 (`GPIO 7, 8, 9, 1
 
 ## 7. Acceptance Criteria (Must Pass Before Merging to `main`)
 
-- [ ] Default 16-pin mapping has zero duplicate BCM pins and zero collisions with I2C/SPI0/UART/EEPROM.
-- [ ] `PUT /api/admin/gpio-config` rejects duplicate enabled pins with HTTP `400` naming both conflicting channels.
-- [ ] Saving valid custom BCM pin / polarity / pulse changes persists across server restart and updates the 40-pin visual diagram immediately.
-- [ ] `Pulse`, `HIGH`, and `LOW` buttons toggle the live electrical state accurately for both `Active-LOW` and `Active-HIGH` channels, and `Pulse` auto-relocks after the configured duration.
-- [ ] Verified Checkout and Verified Return automatically pulse the matching compartment locker(s) and show the unlocked compartment on the receipt & kiosk toast.
-- [ ] Runs cleanly in `simulation` mode on macOS/Windows/Linux and in `raspberry_pi_gpio` mode on Pi 2/3/4/5.
+- [x] Default 16-pin mapping has zero duplicate BCM pins and zero collisions with I2C/SPI0/UART/EEPROM.
+- [x] `PUT /api/admin/gpio-config` rejects duplicate enabled pins with HTTP `400` naming both conflicting channels.
+- [x] Saving valid custom BCM pin / polarity / pulse changes persists across server restart and updates the 40-pin visual diagram immediately.
+- [x] `Pulse`, `HIGH`, and `LOW` buttons toggle the live electrical state accurately for both `Active-LOW` and `Active-HIGH` channels, and `Pulse` auto-relocks after the configured duration.
+- [x] Verified Checkout and Verified Return automatically pulse the matching compartment locker(s) and show the unlocked compartment on the receipt & kiosk toast.
+- [x] Runs cleanly in `simulation` mode on macOS/Windows/Linux and in `raspberry_pi_gpio` mode on Pi 2/3/4/5.

@@ -1015,7 +1015,7 @@
           <!-- ========================================================= -->
           <div
             id="checkout-confirmed-toast"
-            class="hidden absolute top-14 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md bg-emerald-600 text-white border-2 border-emerald-300 rounded-2xl px-4 py-3 shadow-2xl flex items-center justify-between gap-3 animate-modal-pop"
+            class="hidden absolute top-14 left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-lg bg-emerald-600 text-white border-2 border-emerald-300 rounded-2xl px-4 py-3 shadow-2xl flex items-center justify-between gap-3 animate-modal-pop"
           >
             <div class="flex items-center gap-3 min-w-0">
               <div class="w-9 h-9 rounded-full bg-white text-emerald-600 flex items-center justify-center shrink-0 shadow-sm animate-check-pop">
@@ -1024,10 +1024,10 @@
                 </svg>
               </div>
               <div class="min-w-0">
-                <p id="checkout-toast-title" class="text-xs sm:text-sm font-heading font-extrabold tracking-tight truncate">
+                <p id="checkout-toast-title" class="text-xs sm:text-sm font-heading font-extrabold tracking-tight leading-snug">
                   Checkout Confirmed
                 </p>
-                <p id="checkout-toast-sub" class="text-[11px] text-emerald-100 font-mono truncate">
+                <p id="checkout-toast-sub" class="text-[11px] text-emerald-100 font-mono leading-snug mt-0.5">
                   Inventory updated · Equipment pass issued
                 </p>
               </div>
@@ -1739,14 +1739,28 @@
       let checkoutCompletedHandled = false;
       let checkoutToastTimer = null;
 
-      function showCheckoutConfirmedToast(tx) {
+      function formatUnlockedLockersSummary(unlockedLockers) {
+        if (!Array.isArray(unlockedLockers) || unlockedLockers.length === 0) return '';
+        const labels = unlockedLockers.map((l) => {
+          const name = l.name || (l.id ? `Locker ${l.id}` : 'Locker');
+          return l.compartment ? `${name} (${l.compartment})` : name;
+        });
+        return `🔓 Unlocked: ${labels.join(', ')}`;
+      }
+
+      function showCheckoutConfirmedToast(tx, unlockedLockers = []) {
         const toast = document.getElementById('checkout-confirmed-toast');
         const title = document.getElementById('checkout-toast-title');
         const sub = document.getElementById('checkout-toast-sub');
         if (!toast) return;
 
         const txCode = tx && tx.transaction_code ? tx.transaction_code : 'PASS ISSUED';
-        if (title) title.textContent = `Checkout Confirmed — ${txCode}`;
+        const unlockedSummary = formatUnlockedLockersSummary(unlockedLockers);
+        if (title) {
+          title.textContent = unlockedSummary
+            ? `Checkout Confirmed (${txCode}) · ${unlockedSummary}`
+            : `Checkout Confirmed — ${txCode}`;
+        }
         if (sub) {
           const masked = tx && tx.student_name ? maskStudentName(tx.student_name) : 'Student';
           const units =
@@ -1761,7 +1775,10 @@
 
         toast.classList.remove('hidden');
         if (checkoutToastTimer) clearTimeout(checkoutToastTimer);
-        checkoutToastTimer = setTimeout(hideCheckoutConfirmedToast, 6500);
+        checkoutToastTimer = setTimeout(
+          hideCheckoutConfirmedToast,
+          unlockedSummary ? 8500 : 6500
+        );
       }
 
       function hideCheckoutConfirmedToast() {
@@ -1792,14 +1809,20 @@
         }
       }
 
-      function handleCheckoutSessionCompleted(tx) {
+      function handleCheckoutSessionCompleted(tx, unlockedLockers = []) {
         if (checkoutCompletedHandled) return;
         checkoutCompletedHandled = true;
         closeQrModal();
         clearBasket();
         fetchKioskState();
         resetIdleTimer();
-        showCheckoutConfirmedToast(tx);
+        const lockers =
+          Array.isArray(unlockedLockers) && unlockedLockers.length > 0
+            ? unlockedLockers
+            : tx && Array.isArray(tx.unlocked_lockers)
+              ? tx.unlocked_lockers
+              : [];
+        showCheckoutConfirmedToast(tx, lockers);
       }
 
       function watchCheckoutSession(sessionToken) {
@@ -1823,7 +1846,15 @@
                   payload.transaction ||
                   (payload.session && payload.session.completed_transaction) ||
                   null;
-                handleCheckoutSessionCompleted(tx);
+                const unlocked =
+                  Array.isArray(payload.unlocked_lockers)
+                    ? payload.unlocked_lockers
+                    : payload.session && Array.isArray(payload.session.unlocked_lockers)
+                      ? payload.session.unlocked_lockers
+                      : tx && Array.isArray(tx.unlocked_lockers)
+                        ? tx.unlocked_lockers
+                        : [];
+                handleCheckoutSessionCompleted(tx, unlocked);
               }
             } catch {
               // ignore malformed messages
@@ -1843,7 +1874,16 @@
             if (!pollRes.ok) return;
             const pollData = await pollRes.json();
             if (pollData.session && pollData.session.status === 'completed') {
-              handleCheckoutSessionCompleted(pollData.session.completed_transaction || null);
+              const tx = pollData.session.completed_transaction || null;
+              const unlocked =
+                Array.isArray(pollData.unlocked_lockers)
+                  ? pollData.unlocked_lockers
+                  : Array.isArray(pollData.session.unlocked_lockers)
+                    ? pollData.session.unlocked_lockers
+                    : tx && Array.isArray(tx.unlocked_lockers)
+                      ? tx.unlocked_lockers
+                      : [];
+              handleCheckoutSessionCompleted(tx, unlocked);
             }
           } catch {
             // ignore transient polling errors
@@ -2090,7 +2130,7 @@
         if (banner) banner.classList.add('hidden');
       }
 
-      function handleReturnSessionCompleted(tx, nextSafetyStatus) {
+      function handleReturnSessionCompleted(tx, nextSafetyStatus, unlockedLockers = []) {
         if (returnCompletedHandled) return;
         returnCompletedHandled = true;
         closeReturnQrModal();
@@ -2104,6 +2144,14 @@
         const txCode = (tx && tx.transaction_code) || 'RETURNED';
         const verifiedBy = (tx && tx.returned_verified_by) || 'borrower';
         const isAlert = cond === 'Damaged' || cond === 'Missing';
+        const lockers =
+          Array.isArray(unlockedLockers) && unlockedLockers.length > 0
+            ? unlockedLockers
+            : tx && Array.isArray(tx.unlocked_lockers)
+              ? tx.unlocked_lockers
+              : [];
+        const unlockedSummary = formatUnlockedLockersSummary(lockers);
+        const lockerSuffix = unlockedSummary ? ` · ${unlockedSummary}` : '';
 
         const banner = document.getElementById('return-success-banner');
         if (banner) {
@@ -2113,14 +2161,14 @@
             const ledLabel =
               safetyStatus.level === 'UNSAFE' ? 'RED (UNSAFE)' : 'YELLOW (CAUTION)';
             banner.innerHTML = `
-              <span>▲ Verified Return Completed (${escapeHtml(txCode)}) — verified by ${escapeHtml(verifiedBy)} · Condition: ${escapeHtml(cond)} (LED ${ledLabel})</span>
+              <span>▲ Verified Return Completed (${escapeHtml(txCode)}) — verified by ${escapeHtml(verifiedBy)} · Condition: ${escapeHtml(cond)} (LED ${ledLabel})${escapeHtml(lockerSuffix)}</span>
               <button type="button" onclick="hideReturnSuccessBanner()" class="px-2 py-0.5 rounded bg-amber-200/70 hover:bg-amber-200 text-amber-950 font-bold text-xs cursor-pointer shrink-0">✕</button>
             `;
           } else {
             banner.className =
               'p-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl text-xs text-emerald-900 font-semibold flex items-center justify-between gap-2 animate-modal-pop';
             banner.innerHTML = `
-              <span>✓ Verified Return Completed (${escapeHtml(txCode)}) — verified by ${escapeHtml(verifiedBy)}</span>
+              <span>✓ Verified Return Completed (${escapeHtml(txCode)}) — verified by ${escapeHtml(verifiedBy)}${escapeHtml(lockerSuffix)}</span>
               <button type="button" onclick="hideReturnSuccessBanner()" class="px-2 py-0.5 rounded bg-emerald-200/70 hover:bg-emerald-200 text-emerald-900 font-bold text-xs cursor-pointer shrink-0">✕</button>
             `;
           }
@@ -2152,7 +2200,15 @@
                   payload.transaction ||
                   (payload.session && payload.session.completed_transaction) ||
                   null;
-                handleReturnSessionCompleted(tx, payload.safety_status || null);
+                const unlocked =
+                  Array.isArray(payload.unlocked_lockers)
+                    ? payload.unlocked_lockers
+                    : payload.session && Array.isArray(payload.session.unlocked_lockers)
+                      ? payload.session.unlocked_lockers
+                      : tx && Array.isArray(tx.unlocked_lockers)
+                        ? tx.unlocked_lockers
+                        : [];
+                handleReturnSessionCompleted(tx, payload.safety_status || null, unlocked);
               }
             } catch {
               // ignore malformed messages
@@ -2186,7 +2242,15 @@
                 (pollData.session && pollData.session.completed_transaction) ||
                 pollData.transaction_preview ||
                 null;
-              handleReturnSessionCompleted(tx, pollData.safety_status || null);
+              const unlocked =
+                Array.isArray(pollData.unlocked_lockers)
+                  ? pollData.unlocked_lockers
+                  : pollData.session && Array.isArray(pollData.session.unlocked_lockers)
+                    ? pollData.session.unlocked_lockers
+                    : tx && Array.isArray(tx.unlocked_lockers)
+                      ? tx.unlocked_lockers
+                      : [];
+              handleReturnSessionCompleted(tx, pollData.safety_status || null, unlocked);
             }
           } catch {
             // ignore transient polling errors

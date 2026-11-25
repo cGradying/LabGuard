@@ -679,26 +679,830 @@ function resolvePublicBaseUrl(req?: express.Request): string {
   return `${protocol}://${rawHost}`.replace(/\/$/, '');
 }
 
-function getHardwareStatus() {
+// ============================================================================
+// SPEC-04: Simulated Raspberry Pi 2/3/4/5 12-Channel Locker + LED GPIO Manager
+// Full API parity with hardware/gpio_manager.py & app.py for Node dev mode
+// ============================================================================
+type GpioDriverMode = 'auto' | 'enabled' | 'simulation';
+type LedChannelKey = 'green' | 'yellow' | 'red' | 'buzzer';
+type ElectricalState = 'HIGH' | 'LOW';
+type LockerAction = 'pulse' | 'unlock' | 'lock' | 'high' | 'low';
+type LedAction = 'pulse' | 'high' | 'low';
+
+interface LedChannelConfig {
+  label: string;
+  bcm_pin: number | null;
+  active_high: boolean;
+  enabled: boolean;
+}
+
+interface LockerChannelConfig {
+  id: number;
+  name: string;
+  compartment: string;
+  bcm_pin: number | null;
+  active_high: boolean;
+  pulse_seconds: number;
+  enabled: boolean;
+}
+
+interface GpioConfig {
+  mode: GpioDriverMode;
+  default_unlock_seconds: number;
+  auto_unlock_on_borrow: boolean;
+  auto_unlock_on_return: boolean;
+  leds: Record<LedChannelKey, LedChannelConfig>;
+  lockers: LockerChannelConfig[];
+}
+
+interface UnlockedLockerResult {
+  id: number;
+  name: string;
+  compartment: string;
+  bcm_pin: number | null;
+  physical_pin: number | null;
+  pulse_seconds: number;
+  electrical_state: ElectricalState;
+  hardware_mode: string;
+}
+
+interface GpioDiagnosticEvent {
+  timestamp: string;
+  channel: string;
+  bcm_pin: number | null;
+  action: string;
+  electrical_state: ElectricalState;
+  logical_state: string;
+  source: string;
+}
+
+const BCM_TO_PHYSICAL: Record<number, number> = {
+  2: 3,
+  3: 5,
+  4: 7,
+  5: 29,
+  6: 31,
+  7: 26,
+  8: 24,
+  9: 21,
+  10: 19,
+  11: 23,
+  12: 32,
+  13: 33,
+  14: 8,
+  15: 10,
+  16: 36,
+  17: 11,
+  18: 12,
+  19: 35,
+  20: 38,
+  21: 40,
+  22: 15,
+  23: 16,
+  24: 18,
+  25: 22,
+  26: 37,
+  27: 13,
+};
+
+const BUS_WARNINGS: Record<number, string> = {
+  2: 'I2C1 SDA',
+  3: 'I2C1 SCL',
+  7: 'SPI0 CE1',
+  8: 'SPI0 CE0',
+  9: 'SPI0 MISO',
+  10: 'SPI0 MOSI',
+  11: 'SPI0 SCLK',
+  14: 'UART TX',
+  15: 'UART RX',
+  18: 'PWM0 / PCM CLK',
+};
+
+const LED_CHANNEL_KEYS: LedChannelKey[] = ['green', 'yellow', 'red', 'buzzer'];
+
+const DEFAULT_LED_LABELS: Record<LedChannelKey, string> = {
+  green: 'Green LED (SAFE)',
+  yellow: 'Yellow LED (CAUTION)',
+  red: 'Red LED (UNSAFE)',
+  buzzer: 'Active Buzzer',
+};
+
+function parseEnvGpioMode(): GpioDriverMode {
+  const raw = String(process.env.LABGUARD_GPIO_ENABLED || 'auto').trim().toLowerCase();
+  if (raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on' || raw === 'enabled') {
+    return 'enabled';
+  }
+  if (raw === '0' || raw === 'false' || raw === 'no' || raw === 'off' || raw === 'disabled' || raw === 'simulation') {
+    return 'simulation';
+  }
+  return 'auto';
+}
+
+function parseEnvBcmPin(envName: string, fallback: number): number | null {
+  const raw = process.env[envName];
+  if (raw === undefined) return fallback;
+  const cleaned = raw.trim().toLowerCase();
+  if (!cleaned || cleaned === 'none' || cleaned === 'null' || cleaned === 'off' || cleaned === 'disabled') {
+    return null;
+  }
+  const num = Number(cleaned);
+  return Number.isInteger(num) && num >= 2 && num <= 27 ? num : fallback;
+}
+
+function getDefaultGpioConfig(): GpioConfig {
+  const ledActiveHigh = !['0', 'false', 'no'].includes(
+    String(process.env.LABGUARD_LED_ACTIVE_HIGH || '1').trim().toLowerCase()
+  );
+  const buzzerEnabled = !['0', 'false', 'no'].includes(
+    String(process.env.LABGUARD_BUZZER_ENABLED || '1').trim().toLowerCase()
+  );
+  const greenPin = parseEnvBcmPin('LABGUARD_LED_GREEN_PIN', 17);
+  const yellowPin = parseEnvBcmPin('LABGUARD_LED_YELLOW_PIN', 27);
+  const redPin = parseEnvBcmPin('LABGUARD_LED_RED_PIN', 22);
+  const buzzerPin = parseEnvBcmPin('LABGUARD_BUZZER_PIN', 23);
+
+  const defaultLockers: Array<[number, string, string, number]> = [
+    [1, 'Locker 1', '1st - 1st Section', 5],
+    [2, 'Locker 2', '2nd - 1st Section', 6],
+    [3, 'Locker 3', '3rd - 1st Section', 13],
+    [4, 'Locker 4', '4th - 1st Section', 19],
+    [5, 'Locker 5', '1st - 2nd Section', 26],
+    [6, 'Locker 6', '2nd - 2nd Section', 12],
+    [7, 'Locker 7', '3rd - 2nd Section', 16],
+    [8, 'Locker 8', '4th - 2nd Section', 20],
+    [9, 'Locker 9', '1st - 3rd Section', 21],
+    [10, 'Locker 10', '2nd - 3rd Section', 24],
+    [11, 'Locker 11', '3rd - 3rd Section', 25],
+    [12, 'Locker 12', '4th - 3rd Section', 4],
+  ];
+
   return {
-    hardware_mode: 'simulation',
-    is_raspberry_pi: false,
-    gpio_active: false,
-    active_high: true,
-    current_level: safetyStatus.level,
-    led_state: {
-      green: safetyStatus.level === 'SAFE',
-      yellow: safetyStatus.level === 'CAUTION',
-      red: safetyStatus.level === 'UNSAFE',
+    mode: parseEnvGpioMode(),
+    default_unlock_seconds: 5.0,
+    auto_unlock_on_borrow: true,
+    auto_unlock_on_return: true,
+    leds: {
+      green: {
+        label: DEFAULT_LED_LABELS.green,
+        bcm_pin: greenPin,
+        active_high: ledActiveHigh,
+        enabled: greenPin !== null,
+      },
+      yellow: {
+        label: DEFAULT_LED_LABELS.yellow,
+        bcm_pin: yellowPin,
+        active_high: ledActiveHigh,
+        enabled: yellowPin !== null,
+      },
+      red: {
+        label: DEFAULT_LED_LABELS.red,
+        bcm_pin: redPin,
+        active_high: ledActiveHigh,
+        enabled: redPin !== null,
+      },
+      buzzer: {
+        label: DEFAULT_LED_LABELS.buzzer,
+        bcm_pin: buzzerPin,
+        active_high: true,
+        enabled: buzzerEnabled && buzzerPin !== null,
+      },
     },
-    pins: {
-      green: 17,
-      yellow: 27,
-      red: 22,
-      buzzer: 23,
-    },
-    note: 'Node.js Express runtime — LED status running in simulation mode (use Python Flask app.py for Raspberry Pi GPIO).',
+    lockers: defaultLockers.map(([id, name, compartment, bcm_pin]) => ({
+      id,
+      name,
+      compartment,
+      bcm_pin,
+      active_high: false,
+      pulse_seconds: 5.0,
+      enabled: true,
+    })),
   };
+}
+
+function validateGpioConfig(
+  raw: unknown
+): { ok: true; error: ''; config: GpioConfig } | { ok: false; error: string; config: null } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, error: 'GPIO configuration must be a JSON object.', config: null };
+  }
+  const obj = raw as Record<string, unknown>;
+  const defaults = getDefaultGpioConfig();
+
+  const rawMode = String(obj.mode ?? defaults.mode).trim().toLowerCase();
+  if (rawMode !== 'auto' && rawMode !== 'enabled' && rawMode !== 'simulation') {
+    return {
+      ok: false,
+      error: "mode must be one of 'auto', 'enabled', or 'simulation'.",
+      config: null,
+    };
+  }
+
+  const defaultUnlock = Number(obj.default_unlock_seconds ?? defaults.default_unlock_seconds);
+  if (!Number.isFinite(defaultUnlock) || defaultUnlock < 0.5 || defaultUnlock > 60.0) {
+    return {
+      ok: false,
+      error: 'default_unlock_seconds must be between 0.5 and 60.0 seconds.',
+      config: null,
+    };
+  }
+
+  const autoBorrow =
+    obj.auto_unlock_on_borrow !== undefined ? Boolean(obj.auto_unlock_on_borrow) : true;
+  const autoReturn =
+    obj.auto_unlock_on_return !== undefined ? Boolean(obj.auto_unlock_on_return) : true;
+
+  const usedPins = new Map<number, string>();
+
+  const parseBcm = (
+    val: unknown,
+    enabled: boolean,
+    channelName: string
+  ): { ok: true; pin: number | null } | { ok: false; error: string } => {
+    if (val === null || val === undefined || val === '') {
+      if (enabled) {
+        return {
+          ok: false,
+          error: `${channelName} is enabled but has no valid BCM GPIO pin (2-27) assigned.`,
+        };
+      }
+      return { ok: true, pin: null };
+    }
+    if (typeof val === 'boolean') {
+      return { ok: false, error: `${channelName} has an invalid BCM GPIO pin.` };
+    }
+    const num = Number(val);
+    if (!Number.isInteger(num) || num < 2 || num > 27) {
+      return {
+        ok: false,
+        error: `${channelName} BCM pin must be an integer between 2 and 27.`,
+      };
+    }
+    return { ok: true, pin: num };
+  };
+
+  const rawLeds =
+    obj.leds && typeof obj.leds === 'object' && !Array.isArray(obj.leds)
+      ? (obj.leds as Record<string, unknown>)
+      : {};
+  const normalizedLeds = {} as Record<LedChannelKey, LedChannelConfig>;
+
+  for (const key of LED_CHANNEL_KEYS) {
+    const defLed = defaults.leds[key];
+    const entryRaw = rawLeds[key];
+    const entry =
+      entryRaw && typeof entryRaw === 'object' && !Array.isArray(entryRaw)
+        ? (entryRaw as Record<string, unknown>)
+        : (defLed as unknown as Record<string, unknown>);
+    const label = String(entry.label || defLed.label).trim() || defLed.label;
+    const enabled = entry.enabled !== undefined ? Boolean(entry.enabled) : defLed.enabled;
+    const activeHigh =
+      entry.active_high !== undefined ? Boolean(entry.active_high) : defLed.active_high;
+    const pinCheck = parseBcm(
+      entry.bcm_pin !== undefined ? entry.bcm_pin : defLed.bcm_pin,
+      enabled,
+      label
+    );
+    if (!pinCheck.ok) {
+      return { ok: false, error: pinCheck.error, config: null };
+    }
+    if (enabled && pinCheck.pin !== null) {
+      const existingOwner = usedPins.get(pinCheck.pin);
+      if (existingOwner) {
+        return {
+          ok: false,
+          error: `GPIO pin conflict: BCM ${pinCheck.pin} (Pin ${BCM_TO_PHYSICAL[pinCheck.pin]}) is assigned to both '${existingOwner}' and '${label}'.`,
+          config: null,
+        };
+      }
+      usedPins.set(pinCheck.pin, label);
+    }
+    normalizedLeds[key] = {
+      label,
+      bcm_pin: pinCheck.pin,
+      active_high: activeHigh,
+      enabled,
+    };
+  }
+
+  const rawLockers = Array.isArray(obj.lockers) ? obj.lockers : defaults.lockers;
+
+  const seenLockerIds = new Set<number>();
+  const normalizedLockers: LockerChannelConfig[] = [];
+  for (let i = 0; i < rawLockers.length; i++) {
+    const itemRaw = rawLockers[i];
+    if (!itemRaw || typeof itemRaw !== 'object' || Array.isArray(itemRaw)) {
+      return { ok: false, error: `Locker entry #${i + 1} must be an object.`, config: null };
+    }
+    const item = itemRaw as Record<string, unknown>;
+    if (typeof item.id === 'boolean') {
+      return { ok: false, error: `Locker entry #${i + 1} has an invalid id.`, config: null };
+    }
+    const id = Number(item.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return {
+        ok: false,
+        error: `Locker entry #${i + 1} id must be a positive integer.`,
+        config: null,
+      };
+    }
+    if (seenLockerIds.has(id)) {
+      return { ok: false, error: `Duplicate locker id: ${id}.`, config: null };
+    }
+    seenLockerIds.add(id);
+
+    const name = String(item.name || `Locker ${id}`).trim() || `Locker ${id}`;
+    const compartment = String(item.compartment || '').trim();
+    const displayName = compartment ? `${name} (${compartment})` : name;
+    const enabled = item.enabled !== undefined ? Boolean(item.enabled) : true;
+    const activeHigh = item.active_high !== undefined ? Boolean(item.active_high) : false;
+    const pulseSeconds = Number(item.pulse_seconds ?? defaultUnlock);
+    if (!Number.isFinite(pulseSeconds) || pulseSeconds < 0.5 || pulseSeconds > 60.0) {
+      return {
+        ok: false,
+        error: `${name} pulse_seconds must be between 0.5 and 60.0 seconds.`,
+        config: null,
+      };
+    }
+
+    const pinCheck = parseBcm(item.bcm_pin, enabled, displayName);
+    if (!pinCheck.ok) {
+      return { ok: false, error: pinCheck.error, config: null };
+    }
+    if (enabled && pinCheck.pin !== null) {
+      const existingOwner = usedPins.get(pinCheck.pin);
+      if (existingOwner) {
+        return {
+          ok: false,
+          error: `GPIO pin conflict: BCM ${pinCheck.pin} (Pin ${BCM_TO_PHYSICAL[pinCheck.pin]}) is assigned to both '${existingOwner}' and '${displayName}'.`,
+          config: null,
+        };
+      }
+      usedPins.set(pinCheck.pin, displayName);
+    }
+
+    normalizedLockers.push({
+      id,
+      name,
+      compartment,
+      bcm_pin: pinCheck.pin,
+      active_high: activeHigh,
+      pulse_seconds: Math.round(pulseSeconds * 100) / 100,
+      enabled,
+    });
+  }
+
+  return {
+    ok: true,
+    error: '',
+    config: {
+      mode: rawMode,
+      default_unlock_seconds: Math.round(defaultUnlock * 100) / 100,
+      auto_unlock_on_borrow: autoBorrow,
+      auto_unlock_on_return: autoReturn,
+      leds: normalizedLeds,
+      lockers: normalizedLockers,
+    },
+  };
+}
+
+function logicalToElectrical(isActive: boolean, activeHigh: boolean): ElectricalState {
+  if (activeHigh) return isActive ? 'HIGH' : 'LOW';
+  return isActive ? 'LOW' : 'HIGH';
+}
+
+function electricalToLogical(electrical: ElectricalState, activeHigh: boolean): boolean {
+  return activeHigh ? electrical === 'HIGH' : electrical === 'LOW';
+}
+
+class SimulatedGPIOManager {
+  private config: GpioConfig;
+  private currentLevel: SafetyStatusLevel = 'SAFE';
+  private ledOnState: Record<LedChannelKey, boolean> = {
+    green: true,
+    yellow: false,
+    red: false,
+    buzzer: false,
+  };
+  private lockerUnlocked: Map<number, boolean> = new Map();
+  private lockerUnlockUntil: Map<number, string | null> = new Map();
+  private lockerTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
+  private ledTimers: Map<LedChannelKey, ReturnType<typeof setTimeout>> = new Map();
+  private diagnosticLog: GpioDiagnosticEvent[] = [];
+  private onAsyncStateChange?: () => void;
+
+  constructor(onAsyncStateChange?: () => void) {
+    this.onAsyncStateChange = onAsyncStateChange;
+    this.config = getDefaultGpioConfig();
+    this.resetRuntimeStates();
+  }
+
+  private resetRuntimeStates(): void {
+    for (const timer of this.lockerTimers.values()) clearTimeout(timer);
+    this.lockerTimers.clear();
+    for (const timer of this.ledTimers.values()) clearTimeout(timer);
+    this.ledTimers.clear();
+
+    this.lockerUnlocked.clear();
+    this.lockerUnlockUntil.clear();
+    for (const locker of this.config.lockers) {
+      this.lockerUnlocked.set(locker.id, false);
+      this.lockerUnlockUntil.set(locker.id, null);
+    }
+    this.ledOnState = {
+      green: this.currentLevel === 'SAFE',
+      yellow: this.currentLevel === 'CAUTION',
+      red: this.currentLevel === 'UNSAFE',
+      buzzer: false,
+    };
+  }
+
+  private recordEvent(
+    channel: string,
+    bcmPin: number | null,
+    action: string,
+    electricalState: ElectricalState,
+    logicalState: string,
+    source: string
+  ): void {
+    this.diagnosticLog.unshift({
+      timestamp: new Date().toISOString(),
+      channel,
+      bcm_pin: bcmPin,
+      action,
+      electrical_state: electricalState,
+      logical_state: logicalState,
+      source,
+    });
+    if (this.diagnosticLog.length > 50) {
+      this.diagnosticLog.length = 50;
+    }
+  }
+
+  applyConfig(newConfig: unknown, source = 'config_reload'): ReturnType<SimulatedGPIOManager['getFullState']> {
+    const validated = validateGpioConfig(newConfig);
+    if (!validated.ok) {
+      throw new Error(validated.error);
+    }
+    this.config = structuredClone(validated.config);
+    this.resetRuntimeStates();
+    this.recordEvent(
+      'system',
+      null,
+      'apply_config',
+      'LOW',
+      `RELOADED (${this.config.lockers.filter((l) => l.enabled).length} lockers)`,
+      source
+    );
+    return this.getFullState();
+  }
+
+  setSafetyLevel(level: SafetyStatusLevel, source = 'system') {
+    const normalized: SafetyStatusLevel =
+      level === 'CAUTION' || level === 'UNSAFE' ? level : 'SAFE';
+    this.currentLevel = normalized;
+    for (const color of ['green', 'yellow', 'red'] as LedChannelKey[]) {
+      const existing = this.ledTimers.get(color);
+      if (existing) {
+        clearTimeout(existing);
+        this.ledTimers.delete(color);
+      }
+      const isOn =
+        (color === 'green' && normalized === 'SAFE') ||
+        (color === 'yellow' && normalized === 'CAUTION') ||
+        (color === 'red' && normalized === 'UNSAFE');
+      this.ledOnState[color] = isOn;
+    }
+    const activeKey: LedChannelKey =
+      normalized === 'SAFE' ? 'green' : normalized === 'CAUTION' ? 'yellow' : 'red';
+    const activeCfg = this.config.leds[activeKey];
+    this.recordEvent(
+      activeCfg.label,
+      activeCfg.bcm_pin,
+      'safety_level',
+      logicalToElectrical(true, activeCfg.active_high),
+      normalized,
+      source
+    );
+    return this.getStatus();
+  }
+
+  private serializeLocker(locker: LockerChannelConfig) {
+    const isUnlocked = locker.enabled ? Boolean(this.lockerUnlocked.get(locker.id)) : false;
+    const electrical: ElectricalState = locker.enabled
+      ? logicalToElectrical(isUnlocked, locker.active_high)
+      : 'LOW';
+    return {
+      ...locker,
+      physical_pin: locker.bcm_pin !== null ? BCM_TO_PHYSICAL[locker.bcm_pin] ?? null : null,
+      bus_warning: locker.bcm_pin !== null ? BUS_WARNINGS[locker.bcm_pin] ?? null : null,
+      is_unlocked: isUnlocked,
+      electrical_state: electrical,
+      unlock_until: isUnlocked ? this.lockerUnlockUntil.get(locker.id) ?? null : null,
+    };
+  }
+
+  controlLocker(
+    lockerId: number,
+    action: LockerAction,
+    durationSeconds?: number | null,
+    source = 'manual'
+  ) {
+    const locker = this.config.lockers.find((l) => l.id === lockerId);
+    if (!locker) {
+      const err = new Error(`Locker #${lockerId} not found.`);
+      (err as Error & { statusCode?: number }).statusCode = 404;
+      throw err;
+    }
+    if (!locker.enabled || locker.bcm_pin === null) {
+      throw new Error(`${locker.name} is currently disabled or has no BCM pin assigned.`);
+    }
+
+    const prevTimer = this.lockerTimers.get(locker.id);
+    if (prevTimer) {
+      clearTimeout(prevTimer);
+      this.lockerTimers.delete(locker.id);
+    }
+
+    let nextUnlocked = Boolean(this.lockerUnlocked.get(locker.id));
+    let nextElectrical: ElectricalState = logicalToElectrical(nextUnlocked, locker.active_high);
+    let unlockUntil: string | null = null;
+    let pulseDur = locker.pulse_seconds;
+
+    if (action === 'pulse') {
+      const dur =
+        durationSeconds !== undefined && durationSeconds !== null
+          ? Number(durationSeconds)
+          : locker.pulse_seconds;
+      if (!Number.isFinite(dur) || dur < 0.05 || dur > 60.0) {
+        throw new Error('duration_seconds must be between 0.05 and 60.0 seconds.');
+      }
+      pulseDur = Math.round(dur * 1000) / 1000;
+      nextUnlocked = true;
+      nextElectrical = logicalToElectrical(true, locker.active_high);
+      unlockUntil = new Date(Date.now() + pulseDur * 1000).toISOString();
+
+      const timer = setTimeout(() => {
+        this.lockerTimers.delete(locker.id);
+        this.lockerUnlocked.set(locker.id, false);
+        this.lockerUnlockUntil.set(locker.id, null);
+        this.recordEvent(
+          locker.name,
+          locker.bcm_pin,
+          'auto_relock',
+          logicalToElectrical(false, locker.active_high),
+          'LOCKED',
+          `timer (${pulseDur}s)`
+        );
+        this.onAsyncStateChange?.();
+      }, Math.round(pulseDur * 1000));
+      timer.unref?.();
+      this.lockerTimers.set(locker.id, timer);
+    } else if (action === 'unlock') {
+      nextUnlocked = true;
+      nextElectrical = logicalToElectrical(true, locker.active_high);
+    } else if (action === 'lock') {
+      nextUnlocked = false;
+      nextElectrical = logicalToElectrical(false, locker.active_high);
+    } else if (action === 'high') {
+      nextElectrical = 'HIGH';
+      nextUnlocked = electricalToLogical('HIGH', locker.active_high);
+    } else if (action === 'low') {
+      nextElectrical = 'LOW';
+      nextUnlocked = electricalToLogical('LOW', locker.active_high);
+    } else {
+      throw new Error(`Unsupported locker action: ${action}`);
+    }
+
+    this.lockerUnlocked.set(locker.id, nextUnlocked);
+    this.lockerUnlockUntil.set(locker.id, unlockUntil);
+    this.recordEvent(
+      locker.name,
+      locker.bcm_pin,
+      action,
+      nextElectrical,
+      nextUnlocked ? 'UNLOCKED' : 'LOCKED',
+      source
+    );
+    return {
+      ...this.serializeLocker(locker),
+      pulse_seconds: action === 'pulse' ? pulseDur : locker.pulse_seconds,
+      hardware_mode: 'simulation',
+    };
+  }
+
+  controlLedChannel(
+    channel: LedChannelKey,
+    action: LedAction,
+    durationSeconds = 1.0,
+    source = 'manual'
+  ) {
+    const cfg = this.config.leds[channel];
+    if (!cfg) {
+      const err = new Error(`LED channel '${channel}' not found.`);
+      (err as Error & { statusCode?: number }).statusCode = 404;
+      throw err;
+    }
+    if (!cfg.enabled || cfg.bcm_pin === null) {
+      throw new Error(`${cfg.label} is disabled or has no BCM pin assigned.`);
+    }
+
+    const prevTimer = this.ledTimers.get(channel);
+    if (prevTimer) {
+      clearTimeout(prevTimer);
+      this.ledTimers.delete(channel);
+    }
+
+    let isOn = this.ledOnState[channel];
+    let electrical = logicalToElectrical(isOn, cfg.active_high);
+
+    if (action === 'pulse') {
+      const dur = Number(durationSeconds || 1.0);
+      if (!Number.isFinite(dur) || dur < 0.05 || dur > 60.0) {
+        throw new Error('duration_seconds must be between 0.05 and 60.0 seconds.');
+      }
+      isOn = true;
+      electrical = logicalToElectrical(true, cfg.active_high);
+      this.ledOnState[channel] = true;
+
+      const timer = setTimeout(() => {
+        this.ledTimers.delete(channel);
+        const restoredOn =
+          channel === 'buzzer'
+            ? false
+            : (channel === 'green' && this.currentLevel === 'SAFE') ||
+              (channel === 'yellow' && this.currentLevel === 'CAUTION') ||
+              (channel === 'red' && this.currentLevel === 'UNSAFE');
+        this.ledOnState[channel] = restoredOn;
+        this.recordEvent(
+          cfg.label,
+          cfg.bcm_pin,
+          'auto_restore',
+          logicalToElectrical(restoredOn, cfg.active_high),
+          restoredOn ? 'ON' : 'OFF',
+          `pulse_timer (${dur}s)`
+        );
+        this.onAsyncStateChange?.();
+      }, Math.round(dur * 1000));
+      timer.unref?.();
+      this.ledTimers.set(channel, timer);
+    } else if (action === 'high') {
+      electrical = 'HIGH';
+      isOn = electricalToLogical('HIGH', cfg.active_high);
+      this.ledOnState[channel] = isOn;
+    } else if (action === 'low') {
+      electrical = 'LOW';
+      isOn = electricalToLogical('LOW', cfg.active_high);
+      this.ledOnState[channel] = isOn;
+    } else {
+      throw new Error(`Unsupported LED action: ${action}`);
+    }
+
+    this.recordEvent(cfg.label, cfg.bcm_pin, action, electrical, isOn ? 'ON' : 'OFF', source);
+    return {
+      channel,
+      ...cfg,
+      physical_pin: cfg.bcm_pin !== null ? BCM_TO_PHYSICAL[cfg.bcm_pin] ?? null : null,
+      bus_warning: cfg.bcm_pin !== null ? BUS_WARNINGS[cfg.bcm_pin] ?? null : null,
+      is_on: isOn,
+      electrical_state: electrical,
+      hardware_mode: 'simulation',
+    };
+  }
+
+  unlockForCompartments(
+    compartments: string[],
+    source = 'transaction',
+    triggerType: 'borrow' | 'return' = 'borrow'
+  ): UnlockedLockerResult[] {
+    if (triggerType === 'borrow' && !this.config.auto_unlock_on_borrow) return [];
+    if (triggerType === 'return' && !this.config.auto_unlock_on_return) return [];
+
+    const normalizedTargets = new Set(
+      (compartments || []).map((c) => String(c || '').trim().toLowerCase()).filter(Boolean)
+    );
+    if (normalizedTargets.size === 0) return [];
+
+    const unlocked: UnlockedLockerResult[] = [];
+    const seenIds = new Set<number>();
+
+    for (const locker of this.config.lockers) {
+      if (!locker.enabled || locker.bcm_pin === null || seenIds.has(locker.id)) continue;
+      const compNorm = locker.compartment.trim().toLowerCase();
+      if (!compNorm || !normalizedTargets.has(compNorm)) continue;
+      seenIds.add(locker.id);
+      const state = this.controlLocker(locker.id, 'pulse', locker.pulse_seconds, source);
+      unlocked.push({
+        id: state.id,
+        name: state.name,
+        compartment: state.compartment,
+        bcm_pin: state.bcm_pin,
+        physical_pin: state.physical_pin,
+        pulse_seconds: state.pulse_seconds,
+        electrical_state: state.electrical_state,
+        hardware_mode: 'simulation',
+      });
+    }
+    return unlocked;
+  }
+
+  unlockAllLockers(durationSeconds?: number | null, source = 'admin_emergency') {
+    if (durationSeconds !== undefined && durationSeconds !== null) {
+      const dur = Number(durationSeconds);
+      if (!Number.isFinite(dur) || dur < 0.05 || dur > 60.0) {
+        throw new Error('duration_seconds must be between 0.05 and 60.0 seconds.');
+      }
+    }
+    const results = [];
+    for (const locker of this.config.lockers) {
+      if (!locker.enabled || locker.bcm_pin === null) continue;
+      results.push(this.controlLocker(locker.id, 'pulse', durationSeconds, source));
+    }
+    return results;
+  }
+
+  lockAllLockers(source = 'admin_relock_all') {
+    const results = [];
+    for (const locker of this.config.lockers) {
+      if (!locker.enabled || locker.bcm_pin === null) continue;
+      results.push(this.controlLocker(locker.id, 'lock', undefined, source));
+    }
+    return results;
+  }
+
+  getStatus() {
+    const enabledLockers = this.config.lockers.filter((l) => l.enabled && l.bcm_pin !== null);
+    const activeUnlocked = enabledLockers.filter((l) => this.lockerUnlocked.get(l.id)).length;
+    return {
+      hardware_mode: 'simulation',
+      is_raspberry_pi: false,
+      board_model: `Node.js Simulator (${os.platform()} ${os.arch()})`,
+      arch: os.arch(),
+      pin_factory: 'NodeSimulatedPinFactory',
+      gpio_active: false,
+      active_high: this.config.leds.green.active_high,
+      current_level: this.currentLevel,
+      led_state: {
+        green: this.ledOnState.green,
+        yellow: this.ledOnState.yellow,
+        red: this.ledOnState.red,
+      },
+      pins: {
+        green: this.config.leds.green.bcm_pin,
+        yellow: this.config.leds.yellow.bcm_pin,
+        red: this.config.leds.red.bcm_pin,
+        buzzer: this.config.leds.buzzer.bcm_pin,
+      },
+      locker_count: enabledLockers.length,
+      active_unlocked_count: activeUnlocked,
+      note: 'Node.js Express runtime — 12-channel Locker & LED GPIO running in simulation mode (use Python Flask app.py on Raspberry Pi for live GPIO).',
+    };
+  }
+
+  getFullState() {
+    const leds = {} as Record<
+      LedChannelKey,
+      LedChannelConfig & {
+        physical_pin: number | null;
+        bus_warning: string | null;
+        is_on: boolean;
+        electrical_state: ElectricalState;
+      }
+    >;
+    for (const key of LED_CHANNEL_KEYS) {
+      const cfg = this.config.leds[key];
+      const isOn = cfg.enabled ? this.ledOnState[key] : false;
+      leds[key] = {
+        ...cfg,
+        physical_pin: cfg.bcm_pin !== null ? BCM_TO_PHYSICAL[cfg.bcm_pin] ?? null : null,
+        bus_warning: cfg.bcm_pin !== null ? BUS_WARNINGS[cfg.bcm_pin] ?? null : null,
+        is_on: isOn,
+        electrical_state: cfg.enabled ? logicalToElectrical(isOn, cfg.active_high) : 'LOW',
+      };
+    }
+
+    return {
+      status: this.getStatus(),
+      config: structuredClone(this.config),
+      lockers: this.config.lockers.map((l) => this.serializeLocker(l)),
+      leds,
+      bcm_to_physical: { ...BCM_TO_PHYSICAL },
+      bus_warnings: { ...BUS_WARNINGS },
+      diagnostic_log: this.diagnosticLog.slice(0, 30),
+    };
+  }
+}
+
+const unlockedLockersByTxId: Map<number, UnlockedLockerResult[]> = new Map();
+const gpioManager = new SimulatedGPIOManager(() => {
+  broadcastGlobalUpdate({
+    event: 'gpio_updated',
+    hardware: gpioManager.getStatus(),
+  });
+});
+gpioManager.setSafetyLevel(safetyStatus.level, 'startup');
+
+function getHardwareStatus() {
+  return gpioManager.getStatus();
 }
 
 async function startServer() {
@@ -1450,14 +2254,22 @@ async function startServer() {
       res.status(404).json({ error: 'Checkout QR session not found or expired.' });
       return;
     }
+    const completedTx = session.completed_transaction
+      ? enrichTransactionWithInstructions(session.completed_transaction)
+      : undefined;
+    const unlockedLockers = completedTx
+      ? unlockedLockersByTxId.get(completedTx.id) || []
+      : [];
     res.json({
       session: {
         ...session,
         basket_items: enrichBasketItemsWithInstructions(session.basket_items),
-        completed_transaction: session.completed_transaction
-          ? enrichTransactionWithInstructions(session.completed_transaction)
+        completed_transaction: completedTx
+          ? { ...completedTx, unlocked_lockers: unlockedLockers }
           : undefined,
+        unlocked_lockers: unlockedLockers,
       },
+      unlocked_lockers: unlockedLockers,
       safety_status: safetyStatus,
       student_presets: STUDENT_PRESETS,
     });
@@ -1496,10 +2308,12 @@ async function startServer() {
         });
         return;
       }
+      const existingUnlocked = unlockedLockersByTxId.get(completedTx.id) || [];
       res.json({
         success: true,
-        transaction: completedTx,
+        transaction: { ...completedTx, unlocked_lockers: existingUnlocked },
         safety_status: safetyStatus,
+        unlocked_lockers: existingUnlocked,
       });
       return;
     }
@@ -1632,28 +2446,40 @@ async function startServer() {
         updated_by: 'LabGuard+ Automated Safety Monitor',
         updated_at: nowIso,
       };
+      gpioManager.setSafetyLevel('CAUTION', `Borrow ${newTransaction.transaction_code}`);
     }
+
+    const unlockedLockers = gpioManager.unlockForCompartments(
+      snapshotItems.map((item) => item.storage_compartment || ''),
+      `Borrow ${newTransaction.transaction_code}`,
+      'borrow'
+    );
+    unlockedLockersByTxId.set(newTransaction.id, unlockedLockers);
+    const txWithLockers = { ...newTransaction, unlocked_lockers: unlockedLockers };
 
     if (session) {
       session.status = 'completed';
       session.completed_transaction = newTransaction;
       broadcastToCheckoutSession(token, {
         event: 'checkout_completed',
-        transaction: newTransaction,
+        transaction: txWithLockers,
+        unlocked_lockers: unlockedLockers,
       });
     }
 
     broadcastGlobalUpdate({
       event: 'data_updated',
-      transaction: newTransaction,
+      transaction: txWithLockers,
       safety_status: safetyStatus,
       hardware: getHardwareStatus(),
+      unlocked_lockers: unlockedLockers,
     });
 
     res.status(201).json({
       success: true,
-      transaction: newTransaction,
+      transaction: txWithLockers,
       safety_status: safetyStatus,
+      unlocked_lockers: unlockedLockers,
     });
   });
 
@@ -1817,6 +2643,10 @@ async function startServer() {
       ? enriched
       : null;
 
+    const unlockedLockers = completedTx
+      ? unlockedLockersByTxId.get(completedTx.id) || []
+      : [];
+
     const payload: Record<string, unknown> = {
       session: {
         session_token: session.session_token,
@@ -1830,8 +2660,12 @@ async function startServer() {
         items: enriched.items,
         masked_student_name: maskStudentName(enriched.student_name),
         masked_student_id: maskStudentId(enriched.student_id_lrn),
-        completed_transaction: completedTx,
+        completed_transaction: completedTx
+          ? { ...completedTx, unlocked_lockers: unlockedLockers }
+          : null,
+        unlocked_lockers: unlockedLockers,
       },
+      unlocked_lockers: unlockedLockers,
       transaction_preview: buildTransactionPreview(enriched),
       safety_status: safetyStatus,
     };
@@ -1905,10 +2739,15 @@ async function startServer() {
           });
           return;
         }
+        const existingUnlocked = unlockedLockersByTxId.get(completedTx.id) || [];
         res.json({
           success: true,
-          transaction: enrichTransactionWithInstructions(completedTx),
+          transaction: {
+            ...enrichTransactionWithInstructions(completedTx),
+            unlocked_lockers: existingUnlocked,
+          },
           safety_status: safetyStatus,
+          unlocked_lockers: existingUnlocked,
         });
         return;
       }
@@ -1949,29 +2788,45 @@ async function startServer() {
     const condition = normalizeReturnCondition(req.body?.return_condition);
     const notes = String(req.body?.return_notes || '').trim();
     const verifiedBy = `${studentAcc.full_name} (${studentAcc.student_id_lrn})`;
+    const prevLevel = safetyStatus.level;
     const updatedTx = executeTransactionReturn(record, condition, notes, verifiedBy);
+
+    if (safetyStatus.level !== prevLevel) {
+      gpioManager.setSafetyLevel(safetyStatus.level, `Return ${updatedTx.transaction_code}`);
+    }
+
+    const unlockedLockers = gpioManager.unlockForCompartments(
+      (updatedTx.items || []).map((item) => item.storage_compartment || ''),
+      `Return ${updatedTx.transaction_code}`,
+      'return'
+    );
+    unlockedLockersByTxId.set(updatedTx.id, unlockedLockers);
+    const txWithLockers = { ...updatedTx, unlocked_lockers: unlockedLockers };
 
     if (session) {
       session.status = 'completed';
       session.completed_transaction = updatedTx;
       broadcastToReturnSession(cleanToken, {
         event: 'return_completed',
-        transaction: updatedTx,
+        transaction: txWithLockers,
         safety_status: safetyStatus,
+        unlocked_lockers: unlockedLockers,
       });
     }
 
     broadcastGlobalUpdate({
       event: 'data_updated',
-      transaction: updatedTx,
+      transaction: txWithLockers,
       safety_status: safetyStatus,
       hardware: getHardwareStatus(),
+      unlocked_lockers: unlockedLockers,
     });
 
     res.json({
       success: true,
-      transaction: updatedTx,
+      transaction: txWithLockers,
       safety_status: safetyStatus,
+      unlocked_lockers: unlockedLockers,
     });
   });
 
@@ -2003,7 +2858,11 @@ async function startServer() {
       return;
     }
 
+    const prevLevel = safetyStatus.level;
     const updatedTx = executeTransactionReturn(record, condition, notes, verifiedBy);
+    if (safetyStatus.level !== prevLevel) {
+      gpioManager.setSafetyLevel(safetyStatus.level, `Admin Return ${updatedTx.transaction_code}`);
+    }
 
     broadcastGlobalUpdate({
       event: 'data_updated',
@@ -2190,6 +3049,7 @@ async function startServer() {
       updated_by: updatedBy,
       updated_at: new Date().toISOString(),
     };
+    gpioManager.setSafetyLevel(level, `Admin: ${updatedBy}`);
 
     broadcastGlobalUpdate({
       event: 'data_updated',
@@ -2198,6 +3058,255 @@ async function startServer() {
     });
 
     res.json({ safety_status: safetyStatus });
+  });
+
+  // ============================================================================
+  // SPEC-04: Technical GPIO & 12-Channel Locker Admin Endpoints (Node Parity)
+  // ============================================================================
+  function buildGpioAdminResponse(req: express.Request) {
+    const baseUrl = resolvePublicBaseUrl(req);
+    return {
+      ...gpioManager.getFullState(),
+      lan_url: baseUrl,
+      kiosk_url: `${baseUrl}/kiosk`,
+      admin_url: `${baseUrl}/admin`,
+    };
+  }
+
+  app.get('/api/admin/gpio-config', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+    res.json(buildGpioAdminResponse(req));
+  });
+
+  app.put('/api/admin/gpio-config', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      res.status(400).json({ error: 'Invalid JSON payload for GPIO configuration.' });
+      return;
+    }
+
+    const candidate =
+      body.config && typeof body.config === 'object' && !Array.isArray(body.config)
+        ? body.config
+        : body;
+    const validated = validateGpioConfig(candidate);
+    if (!validated.ok) {
+      res.status(400).json({ error: validated.error });
+      return;
+    }
+
+    try {
+      gpioManager.applyConfig(
+        validated.config,
+        `Admin: ${admin.name || admin.email || 'Administrator'}`
+      );
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+
+    broadcastGlobalUpdate({
+      event: 'gpio_updated',
+      hardware: getHardwareStatus(),
+    });
+    res.json(buildGpioAdminResponse(req));
+  });
+
+  app.post('/api/admin/gpio-config/reset', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    gpioManager.applyConfig(
+      getDefaultGpioConfig(),
+      `Reset by ${admin.name || admin.email || 'Administrator'}`
+    );
+    broadcastGlobalUpdate({
+      event: 'gpio_updated',
+      hardware: getHardwareStatus(),
+    });
+    res.json(buildGpioAdminResponse(req));
+  });
+
+  app.post('/api/admin/gpio/test-locker', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    const rawId = req.body?.locker_id;
+    const lockerId = typeof rawId === 'boolean' || rawId === null || rawId === undefined ? NaN : Number(rawId);
+    if (!Number.isInteger(lockerId)) {
+      res.status(400).json({ error: 'locker_id must be a valid integer.' });
+      return;
+    }
+
+    const action = String(req.body?.action || '').trim().toLowerCase() as LockerAction;
+    if (!['pulse', 'unlock', 'lock', 'high', 'low'].includes(action)) {
+      res.status(400).json({
+        error: 'action must be one of: pulse, unlock, lock, high, low.',
+      });
+      return;
+    }
+
+    let durationSeconds: number | undefined;
+    if (
+      req.body?.duration_seconds !== undefined &&
+      req.body?.duration_seconds !== null &&
+      req.body?.duration_seconds !== ''
+    ) {
+      if (typeof req.body.duration_seconds === 'boolean') {
+        res.status(400).json({ error: 'duration_seconds must be a positive number.' });
+        return;
+      }
+      const parsed = Number(req.body.duration_seconds);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        res.status(400).json({ error: 'duration_seconds must be a positive number.' });
+        return;
+      }
+      durationSeconds = parsed;
+    }
+
+    try {
+      const locker = gpioManager.controlLocker(
+        lockerId,
+        action,
+        durationSeconds,
+        `Admin: ${admin.name || admin.email || 'Administrator'}`
+      );
+      broadcastGlobalUpdate({
+        event: 'gpio_updated',
+        hardware: getHardwareStatus(),
+      });
+      res.json({
+        success: true,
+        locker,
+        gpio: gpioManager.getFullState(),
+      });
+    } catch (err) {
+      const statusCode = (err as Error & { statusCode?: number }).statusCode || 400;
+      res.status(statusCode).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post('/api/admin/gpio/test-led', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    const channel = String(req.body?.channel || '').trim().toLowerCase() as LedChannelKey;
+    if (!LED_CHANNEL_KEYS.includes(channel)) {
+      res.status(400).json({
+        error: 'channel must be one of: green, yellow, red, buzzer.',
+      });
+      return;
+    }
+
+    const action = String(req.body?.action || 'pulse').trim().toLowerCase() as LedAction;
+    if (!['pulse', 'high', 'low'].includes(action)) {
+      res.status(400).json({
+        error: 'action must be one of: pulse, high, low.',
+      });
+      return;
+    }
+
+    let durationSeconds = 1.0;
+    if (
+      req.body?.duration_seconds !== undefined &&
+      req.body?.duration_seconds !== null &&
+      req.body?.duration_seconds !== ''
+    ) {
+      if (typeof req.body.duration_seconds === 'boolean') {
+        res.status(400).json({ error: 'duration_seconds must be a positive number.' });
+        return;
+      }
+      const parsed = Number(req.body.duration_seconds);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        res.status(400).json({ error: 'duration_seconds must be a positive number.' });
+        return;
+      }
+      durationSeconds = parsed;
+    }
+
+    try {
+      const result = gpioManager.controlLedChannel(
+        channel,
+        action,
+        durationSeconds,
+        `Admin: ${admin.name || admin.email || 'Administrator'}`
+      );
+      broadcastGlobalUpdate({
+        event: 'gpio_updated',
+        hardware: getHardwareStatus(),
+      });
+      res.json({
+        success: true,
+        result,
+        gpio: gpioManager.getFullState(),
+      });
+    } catch (err) {
+      const statusCode = (err as Error & { statusCode?: number }).statusCode || 400;
+      res.status(statusCode).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post('/api/admin/gpio/unlock-all', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    let durationSeconds: number | undefined;
+    if (
+      req.body?.duration_seconds !== undefined &&
+      req.body?.duration_seconds !== null &&
+      req.body?.duration_seconds !== ''
+    ) {
+      if (typeof req.body.duration_seconds === 'boolean') {
+        res.status(400).json({ error: 'duration_seconds must be a positive number.' });
+        return;
+      }
+      const parsed = Number(req.body.duration_seconds);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        res.status(400).json({ error: 'duration_seconds must be a positive number.' });
+        return;
+      }
+      durationSeconds = parsed;
+    }
+
+    try {
+      const unlocked = gpioManager.unlockAllLockers(
+        durationSeconds,
+        `Admin Emergency: ${admin.name || admin.email || 'Administrator'}`
+      );
+      broadcastGlobalUpdate({
+        event: 'gpio_updated',
+        hardware: getHardwareStatus(),
+      });
+      res.json({
+        success: true,
+        unlocked,
+        gpio: gpioManager.getFullState(),
+      });
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post('/api/admin/gpio/lock-all', (req, res) => {
+    const admin = requireAdminAuth(req, res);
+    if (!admin) return;
+
+    const locked = gpioManager.lockAllLockers(
+      `Admin Relock All: ${admin.name || admin.email || 'Administrator'}`
+    );
+    broadcastGlobalUpdate({
+      event: 'gpio_updated',
+      hardware: getHardwareStatus(),
+    });
+    res.json({
+      success: true,
+      locked,
+      gpio: gpioManager.getFullState(),
+    });
   });
 
   app.post('/api/reset', (req, res) => {
@@ -2210,9 +3319,11 @@ async function startServer() {
     checkoutSessions.clear();
     returnSessions.clear();
     studentSessions.clear();
+    unlockedLockersByTxId.clear();
     seedStudentAccounts();
     linkSeededTransactionsToAccounts();
-    // Preserve adminSessions so the active administrator stays signed in
+    // Preserve adminSessions and GPIO pin configuration across demo resets
+    gpioManager.setSafetyLevel(safetyStatus.level, 'Demo Reset');
 
     broadcastGlobalUpdate({
       event: 'data_updated',

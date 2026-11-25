@@ -165,10 +165,23 @@
               id="nav-tab-safety"
               type="button"
               onclick="switchAdminTab('safety')"
-              class="w-full px-3.5 py-2.5 rounded-lg text-left text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer flex items-center justify-between"
+              class="w-full px-3.5 py-2.5 rounded-lg text-left text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer flex items-center justify-between gap-2"
             >
               <span>LED Safety Display</span>
               <span id="sidebar-led-badge" class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">SAFE</span>
+            </button>
+
+            <p class="px-3 pt-3 pb-1 text-[10px] font-mono uppercase tracking-wider text-slate-400">
+              Hardware Controller
+            </p>
+            <button
+              id="nav-tab-gpio"
+              type="button"
+              onclick="switchAdminTab('gpio')"
+              class="w-full px-3.5 py-2.5 rounded-lg text-left text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer flex items-center justify-between gap-2"
+            >
+              <span>GPIO &amp; Locker Hardware</span>
+              <span id="sidebar-gpio-badge" class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 shrink-0">12 CH</span>
             </button>
           </nav>
         </div>
@@ -565,6 +578,410 @@
                     —
                   </p>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============================================================= -->
+          <!-- TAB 5: RASPBERRY PI GPIO & 12-CHANNEL LOCKER HARDWARE CONSOLE -->
+          <!-- ============================================================= -->
+          <section id="tab-gpio-section" class="hidden space-y-5">
+            <!-- 1. BOARD & PIN FACTORY TELEMETRY HEADER + ACTION BAR -->
+            <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <div class="bg-[#0F172A] text-white px-6 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-[10px] font-mono font-bold uppercase tracking-wider text-[#F5A623]">
+                      Raspberry Pi 2 / 3 / 4 / 5 Hardware Controller
+                    </span>
+                    <span
+                      id="gpio-dirty-badge"
+                      class="hidden px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-mono text-[10px] font-extrabold uppercase"
+                    >
+                      ● Unsaved Changes
+                    </span>
+                  </div>
+                  <h2 class="text-lg font-extrabold font-heading tracking-tight mt-0.5">
+                    GPIO &amp; 12-Channel Locker Hardware Console
+                  </h2>
+                  <p id="gpio-status-note" class="text-xs text-slate-300 font-mono mt-0.5">
+                    Loading Raspberry Pi pin factory, 40-pin J8 header map, and relay states...
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                  <span
+                    id="gpio-mode-badge"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200"
+                  >
+                    ○ Simulation Mode
+                  </span>
+                  <button
+                    type="button"
+                    onclick="fetchGpioConfig({ preserveDraftIfDirty: false })"
+                    class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-mono font-semibold text-slate-200 cursor-pointer"
+                    title="Reload live state from controller"
+                  >
+                    ↻ Sync
+                  </button>
+                </div>
+              </div>
+
+              <!-- Hardware Telemetry Strip -->
+              <div class="p-5 space-y-4">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl min-w-0">
+                    <p class="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
+                      Board Model
+                    </p>
+                    <p id="gpio-stat-board" class="text-xs font-mono font-bold text-slate-900 mt-1 truncate" title="">
+                      —
+                    </p>
+                  </div>
+                  <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl min-w-0">
+                    <p class="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
+                      CPU Architecture
+                    </p>
+                    <p id="gpio-stat-arch" class="text-xs font-mono font-bold text-slate-900 mt-1 truncate">
+                      —
+                    </p>
+                  </div>
+                  <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl min-w-0">
+                    <p class="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
+                      Pin Factory Driver
+                    </p>
+                    <p id="gpio-stat-factory" class="text-xs font-mono font-bold text-[#003087] mt-1 truncate">
+                      —
+                    </p>
+                  </div>
+                  <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl min-w-0">
+                    <p class="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
+                      Unlocked Lockers
+                    </p>
+                    <p id="gpio-stat-unlocked" class="text-sm font-mono font-extrabold tabular-nums text-slate-900 mt-0.5">
+                      0 / 12
+                    </p>
+                  </div>
+                  <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl min-w-0 col-span-2 md:col-span-1">
+                    <p class="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
+                      Safety LED Bus
+                    </p>
+                    <p id="gpio-stat-led" class="text-xs font-mono font-extrabold text-[#16A34A] mt-1 truncate">
+                      SAFE
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Action Toolbar -->
+                <div class="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-100">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button
+                      id="gpio-save-btn"
+                      type="button"
+                      onclick="saveAndApplyGpioConfig()"
+                      class="px-4 py-2 text-xs font-heading font-extrabold text-white bg-[#003087] hover:bg-[#002466] disabled:opacity-60 rounded-lg transition-colors shadow-xs cursor-pointer"
+                    >
+                      Save &amp; Apply Live
+                    </button>
+                    <button
+                      type="button"
+                      onclick="resetGpioDefaults()"
+                      class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Reset Pi 2/3 Defaults
+                    </button>
+                    <button
+                      type="button"
+                      onclick="emergencyUnlockAllLockers()"
+                      class="px-3.5 py-2 text-xs font-heading font-bold text-white bg-[#C8102E] hover:bg-[#a50d25] rounded-lg transition-colors cursor-pointer"
+                    >
+                      Emergency Unlock All (5s)
+                    </button>
+                    <button
+                      type="button"
+                      onclick="forceRelockAllLockers()"
+                      class="px-3.5 py-2 text-xs font-heading font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Force Relock All
+                    </button>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onclick="exportGpioConfigJson()"
+                      class="px-3 py-2 text-xs font-mono font-bold text-[#003087] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Export JSON
+                    </button>
+                    <label
+                      class="px-3 py-2 text-xs font-mono font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Import JSON
+                      <input
+                        id="gpio-import-file"
+                        type="file"
+                        accept=".json,application/json"
+                        onchange="importGpioConfigJson(event)"
+                        class="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Conflict / Error Banner & Success Toast -->
+                <div
+                  id="gpio-error-banner"
+                  role="alert"
+                  class="hidden p-3.5 rounded-xl border-2 border-red-400 bg-red-50 text-red-900 text-xs font-semibold space-y-1"
+                ></div>
+                <div
+                  id="gpio-success-banner"
+                  class="hidden p-3 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 text-xs font-semibold"
+                ></div>
+              </div>
+            </div>
+
+            <!-- 2. GLOBAL CONTROLLER SETTINGS & 3. INTERACTIVE 40-PIN HEADER DIAGRAM -->
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+              <!-- Left Column: Global Controller Settings + LED & Buzzer Pin Table -->
+              <div class="xl:col-span-5 space-y-5">
+                <!-- Global Controller Settings Panel -->
+                <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+                  <div class="border-b border-slate-200 pb-3">
+                    <p class="text-[10px] font-mono uppercase tracking-wider text-[#003087] font-bold">
+                      Controller Policy
+                    </p>
+                    <h3 class="text-sm font-extrabold text-slate-900 font-heading mt-0.5">
+                      Global GPIO Controller Settings
+                    </h3>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label for="gpio-global-mode" class="block text-xs font-bold text-slate-800 mb-1">
+                        GPIO Driver Mode
+                      </label>
+                      <select
+                        id="gpio-global-mode"
+                        onchange="onGpioGlobalSettingChange()"
+                        class="w-full px-3 py-2 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-[#003087] focus:bg-white"
+                      >
+                        <option value="auto">auto (Detect Pi / Sim Fallback)</option>
+                        <option value="enabled">enabled (Force Pi GPIO)</option>
+                        <option value="simulation">simulation (Software Only)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label for="gpio-global-pulse" class="block text-xs font-bold text-slate-800 mb-1">
+                        Default Unlock Pulse (0.5–60s)
+                      </label>
+                      <input
+                        id="gpio-global-pulse"
+                        type="number"
+                        min="0.5"
+                        max="60"
+                        step="0.5"
+                        value="5"
+                        oninput="onGpioGlobalSettingChange()"
+                        class="w-full px-3 py-2 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-[#003087] focus:bg-white tabular-nums"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="space-y-2.5 pt-1">
+                    <label class="flex items-start gap-2.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
+                      <input
+                        id="gpio-global-auto-borrow"
+                        type="checkbox"
+                        checked
+                        onchange="onGpioGlobalSettingChange()"
+                        class="mt-0.5 w-4 h-4 accent-[#003087] rounded shrink-0"
+                      />
+                      <span class="text-xs text-slate-800 font-medium leading-snug">
+                        Auto-unlock compartment locker on verified <strong>Borrow Checkout</strong>
+                      </span>
+                    </label>
+
+                    <label class="flex items-start gap-2.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
+                      <input
+                        id="gpio-global-auto-return"
+                        type="checkbox"
+                        checked
+                        onchange="onGpioGlobalSettingChange()"
+                        class="mt-0.5 w-4 h-4 accent-[#003087] rounded shrink-0"
+                      />
+                      <span class="text-xs text-slate-800 font-medium leading-snug">
+                        Auto-unlock compartment locker on verified <strong>Return</strong>
+                      </span>
+                    </label>
+                  </div>
+
+                  <!-- Technical Active-LOW vs Active-HIGH Reference Note -->
+                  <div class="p-3.5 bg-blue-50/75 border border-blue-200 rounded-xl space-y-1.5 text-[11px] text-slate-700 leading-relaxed">
+                    <p class="font-mono text-[10px] font-extrabold uppercase tracking-wider text-[#003087]">
+                      Electrical Logic Polarity Reference
+                    </p>
+                    <p>
+                      <strong class="text-slate-900">Active-LOW (Standard 5V Opto-Isolated Relay Boards):</strong>
+                      <code class="font-mono font-bold text-slate-900 bg-white px-1 py-0.5 rounded border border-slate-200">LOW (0V)</code>
+                      energizes the relay coil (<span class="font-mono font-bold text-amber-800">UNLOCKED</span>);
+                      <code class="font-mono font-bold text-slate-900 bg-white px-1 py-0.5 rounded border border-slate-200">HIGH (3.3V)</code>
+                      holds relay idle (<span class="font-mono font-bold text-slate-700">LOCKED</span>).
+                    </p>
+                    <p>
+                      <strong class="text-slate-900">Active-HIGH (Direct MOSFET / LED / Active Buzzer):</strong>
+                      <code class="font-mono font-bold text-slate-900 bg-white px-1 py-0.5 rounded border border-slate-200">HIGH (3.3V)</code>
+                      turns output <span class="font-mono font-bold text-emerald-700">ON / UNLOCKED</span>;
+                      <code class="font-mono font-bold text-slate-900 bg-white px-1 py-0.5 rounded border border-slate-200">LOW (0V)</code>
+                      turns output <span class="font-mono font-bold text-slate-700">OFF / LOCKED</span>.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- 5. STATUS LED & BUZZER GPIO CONFIGURATION TABLE -->
+                <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                  <div class="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                    <div>
+                      <p class="text-[10px] font-mono uppercase tracking-wider text-[#003087] font-bold">
+                        4-Channel Indicators
+                      </p>
+                      <h3 class="text-sm font-extrabold text-slate-900 font-heading">
+                        Status LED &amp; Buzzer GPIO Map
+                      </h3>
+                    </div>
+                    <span class="text-[10px] font-mono text-slate-500">
+                      SAFE · CAUTION · UNSAFE · BUZ
+                    </span>
+                  </div>
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                      <thead>
+                        <tr class="border-b border-slate-200 bg-slate-50/70 text-[10px] font-mono uppercase text-slate-500">
+                          <th class="py-2.5 px-3">Channel</th>
+                          <th class="py-2.5 px-2">BCM Pin</th>
+                          <th class="py-2.5 px-2">Logic</th>
+                          <th class="py-2.5 px-2 text-center">En</th>
+                          <th class="py-2.5 px-2">State</th>
+                          <th class="py-2.5 px-3 text-right">Test</th>
+                        </tr>
+                      </thead>
+                      <tbody id="gpio-leds-tbody" class="divide-y divide-slate-200 text-xs"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right Column: 3. INTERACTIVE 40-PIN RASPBERRY PI HEADER DIAGRAM -->
+              <div class="xl:col-span-7 bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div class="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p class="text-[10px] font-mono uppercase tracking-wider text-[#003087] font-bold">
+                      Physical J8 Header · Live Conflict Inspector
+                    </p>
+                    <h3 class="text-sm font-extrabold text-slate-900 font-heading">
+                      Interactive 40-Pin Raspberry Pi Header Pinout (Pins 1–40)
+                    </h3>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                    <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-900 border border-orange-300 font-bold">3V3</span>
+                    <span class="px-1.5 py-0.5 rounded bg-red-100 text-red-900 border border-red-300 font-bold">5V</span>
+                    <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 font-bold">GND</span>
+                    <span class="px-1.5 py-0.5 rounded bg-[#003087] text-white font-bold">L1-L12</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                      <span class="w-2 h-2 rounded-full bg-emerald-500"></span>HIGH 3.3V
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-300 font-bold">
+                      <span class="w-2 h-2 rounded-full bg-slate-400"></span>LOW 0V
+                    </span>
+                  </div>
+                </div>
+
+                <div class="p-4 overflow-x-auto">
+                  <div class="min-w-[540px]">
+                    <div class="grid grid-cols-2 gap-x-2 text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold pb-2 px-1">
+                      <div class="flex items-center justify-between pr-2">
+                        <span>LabGuard+ Role / Bus / State</span>
+                        <span>BCM · Odd Pin</span>
+                      </div>
+                      <div class="flex items-center justify-between pl-2">
+                        <span>Even Pin · BCM</span>
+                        <span>State / Bus / LabGuard+ Role</span>
+                      </div>
+                    </div>
+                    <div id="gpio-header-diagram" class="space-y-1"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. 12-CHANNEL LOCKER LOCK GPIO MATRIX TABLE -->
+            <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div class="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="text-[10px] font-mono uppercase tracking-wider text-[#003087] font-bold">
+                    Solenoid / Relay Output Matrix
+                  </p>
+                  <h3 class="text-sm font-extrabold text-slate-900 font-heading">
+                    12-Channel Locker Lock GPIO Matrix
+                  </h3>
+                </div>
+                <p class="text-[11px] font-mono text-slate-500">
+                  Edit pins, polarity, or pulse inline · Changes preview live on the 40-pin map · Click <strong class="text-slate-800">Save &amp; Apply Live</strong> to persist
+                </p>
+              </div>
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="border-b border-slate-200 bg-slate-50 text-[10px] font-mono uppercase text-slate-500">
+                      <th class="py-2.5 px-3">Channel</th>
+                      <th class="py-2.5 px-3">Storage Compartment</th>
+                      <th class="py-2.5 px-3">BCM GPIO Pin</th>
+                      <th class="py-2.5 px-3">Logic Polarity</th>
+                      <th class="py-2.5 px-2">Pulse (s)</th>
+                      <th class="py-2.5 px-2 text-center">Enabled</th>
+                      <th class="py-2.5 px-3">Live State</th>
+                      <th class="py-2.5 px-3 text-right">Direct Controls</th>
+                    </tr>
+                  </thead>
+                  <tbody id="gpio-lockers-tbody" class="divide-y divide-slate-200 text-xs"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 6. LIVE GPIO DIAGNOSTIC EVENT CONSOLE -->
+            <div class="bg-slate-950 text-slate-200 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+              <div class="px-4 py-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                  <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-white">
+                    Live GPIO Diagnostic Event Console
+                  </h3>
+                  <span id="gpio-diag-count" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono text-[10px]">
+                    0 events
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onclick="fetchGpioConfig({ preserveDraftIfDirty: true })"
+                  class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-mono font-semibold text-slate-200 cursor-pointer"
+                >
+                  Refresh
+                </button>
+              </div>
+              <div class="px-4 py-2 border-b border-slate-800/80 bg-slate-950 text-[10px] font-mono uppercase tracking-wider text-slate-500 grid grid-cols-12 gap-2">
+                <span class="col-span-2">Time</span>
+                <span class="col-span-2">Channel</span>
+                <span class="col-span-1">BCM</span>
+                <span class="col-span-2">Action</span>
+                <span class="col-span-1">Voltage</span>
+                <span class="col-span-2">Logical</span>
+                <span class="col-span-2 text-right">Source</span>
+              </div>
+              <div id="gpio-diag-log" class="max-h-72 overflow-y-auto divide-y divide-slate-800/70 font-mono text-[11px] px-4 py-1">
+                <p class="py-6 text-center text-slate-500">No GPIO transitions logged yet.</p>
               </div>
             </div>
           </section>
@@ -1059,8 +1476,62 @@ Inspect apparatus condition before starting the experiment</textarea>
       let idPhotoZoomed = false;
       let accountsBannerTimer = null;
       let inventoryBannerTimer = null;
+      let gpioSuccessBannerTimer = null;
+      let gpioPulseRefreshTimer = null;
+      let gpioLiveState = null;
+      let gpioDraftConfig = null;
+      let gpioConfigDirty = false;
       let adminWs = null;
       let adminWsReconnectTimer = null;
+
+      const PI_J8_BCM_TO_PHYSICAL = {
+        2: 3, 3: 5, 4: 7, 5: 29, 6: 31, 7: 26, 8: 24, 9: 21, 10: 19, 11: 23,
+        12: 32, 13: 33, 14: 8, 15: 10, 16: 36, 17: 11, 18: 12, 19: 35, 20: 38,
+        21: 40, 22: 15, 23: 16, 24: 18, 25: 22, 26: 37, 27: 13,
+      };
+
+      const PI_J8_BUS_WARNINGS = {
+        2: 'I2C1 SDA',
+        3: 'I2C1 SCL',
+        7: 'SPI0 CE1',
+        8: 'SPI0 CE0',
+        9: 'SPI0 MISO',
+        10: 'SPI0 MOSI',
+        11: 'SPI0 SCLK',
+        14: 'UART TX',
+        15: 'UART RX',
+        18: 'PWM0 / PCM CLK',
+      };
+
+      const PI_J8_HEADER_ROWS = [
+        [{ pin: 1, type: '3v3', label: '3V3 Power' }, { pin: 2, type: '5v', label: '5V Power' }],
+        [{ pin: 3, type: 'gpio', bcm: 2, bus: 'I2C' }, { pin: 4, type: '5v', label: '5V Power' }],
+        [{ pin: 5, type: 'gpio', bcm: 3, bus: 'I2C' }, { pin: 6, type: 'gnd', label: 'GND' }],
+        [{ pin: 7, type: 'gpio', bcm: 4 }, { pin: 8, type: 'gpio', bcm: 14, bus: 'UART' }],
+        [{ pin: 9, type: 'gnd', label: 'GND' }, { pin: 10, type: 'gpio', bcm: 15, bus: 'UART' }],
+        [{ pin: 11, type: 'gpio', bcm: 17 }, { pin: 12, type: 'gpio', bcm: 18, bus: 'PWM' }],
+        [{ pin: 13, type: 'gpio', bcm: 27 }, { pin: 14, type: 'gnd', label: 'GND' }],
+        [{ pin: 15, type: 'gpio', bcm: 22 }, { pin: 16, type: 'gpio', bcm: 23 }],
+        [{ pin: 17, type: '3v3', label: '3V3 Power' }, { pin: 18, type: 'gpio', bcm: 24 }],
+        [{ pin: 19, type: 'gpio', bcm: 10, bus: 'SPI' }, { pin: 20, type: 'gnd', label: 'GND' }],
+        [{ pin: 21, type: 'gpio', bcm: 9, bus: 'SPI' }, { pin: 22, type: 'gpio', bcm: 25 }],
+        [{ pin: 23, type: 'gpio', bcm: 11, bus: 'SPI' }, { pin: 24, type: 'gpio', bcm: 8, bus: 'SPI' }],
+        [{ pin: 25, type: 'gnd', label: 'GND' }, { pin: 26, type: 'gpio', bcm: 7, bus: 'SPI' }],
+        [{ pin: 27, type: 'id', label: 'ID_SD (EEPROM)' }, { pin: 28, type: 'id', label: 'ID_SC (EEPROM)' }],
+        [{ pin: 29, type: 'gpio', bcm: 5 }, { pin: 30, type: 'gnd', label: 'GND' }],
+        [{ pin: 31, type: 'gpio', bcm: 6 }, { pin: 32, type: 'gpio', bcm: 12, bus: 'PWM' }],
+        [{ pin: 33, type: 'gpio', bcm: 13, bus: 'PWM' }, { pin: 34, type: 'gnd', label: 'GND' }],
+        [{ pin: 35, type: 'gpio', bcm: 19 }, { pin: 36, type: 'gpio', bcm: 16 }],
+        [{ pin: 37, type: 'gpio', bcm: 26 }, { pin: 38, type: 'gpio', bcm: 20 }],
+        [{ pin: 39, type: 'gnd', label: 'GND' }, { pin: 40, type: 'gpio', bcm: 21 }],
+      ];
+
+      const GPIO_LED_CHANNEL_META = [
+        { key: 'green', shortTag: 'G-LED', defaultLabel: 'Green LED (SAFE)', dotCls: 'bg-emerald-500', chipCls: 'bg-emerald-600 text-white' },
+        { key: 'yellow', shortTag: 'Y-LED', defaultLabel: 'Yellow LED (CAUTION)', dotCls: 'bg-amber-400', chipCls: 'bg-amber-500 text-slate-950' },
+        { key: 'red', shortTag: 'R-LED', defaultLabel: 'Red LED (UNSAFE)', dotCls: 'bg-red-500', chipCls: 'bg-[#C8102E] text-white' },
+        { key: 'buzzer', shortTag: 'BUZ', defaultLabel: 'Active Buzzer', dotCls: 'bg-indigo-500', chipCls: 'bg-indigo-600 text-white' },
+      ];
 
       function escapeHtml(str) {
         return String(str === null || str === undefined ? '' : str)
@@ -1225,6 +1696,7 @@ Inspect apparatus condition before starting the experiment</textarea>
         fetchAdminState();
         fetchAdminStudents();
         fetchHardwareStatus();
+        fetchGpioConfig({ silent: true });
         connectAdminSocket();
       }
 
@@ -1815,10 +2287,11 @@ Inspect apparatus condition before starting the experiment</textarea>
           accounts: 'Student Accounts & ID Approval',
           inventory: 'Kiosk Lab Items (Add / Remove)',
           safety: 'LED Safety Display',
+          gpio: 'GPIO & Locker Hardware',
         };
         document.getElementById('breadcrumb-current').textContent = titles[tab] || 'Dashboard';
 
-        ['logs', 'accounts', 'inventory', 'safety'].forEach((t) => {
+        ['logs', 'accounts', 'inventory', 'safety', 'gpio'].forEach((t) => {
           const sec = document.getElementById(`tab-${t}-section`);
           const nav = document.getElementById(`nav-tab-${t}`);
           if (!sec || !nav) return;
@@ -1837,7 +2310,1012 @@ Inspect apparatus condition before starting the experiment</textarea>
           fetchAdminStudents();
         } else if (tab === 'safety') {
           fetchHardwareStatus();
+        } else if (tab === 'gpio') {
+          fetchGpioConfig({ preserveDraftIfDirty: true });
         }
+      }
+
+      function cloneGpioConfig(cfg) {
+        try {
+          return JSON.parse(JSON.stringify(cfg));
+        } catch {
+          return null;
+        }
+      }
+
+      function getBcmToPhysicalMap() {
+        return (gpioLiveState && gpioLiveState.bcm_to_physical) || PI_J8_BCM_TO_PHYSICAL;
+      }
+
+      function getBusWarningsMap() {
+        return (gpioLiveState && gpioLiveState.bus_warnings) || PI_J8_BUS_WARNINGS;
+      }
+
+      function updateSidebarGpioBadge(status) {
+        const badge = document.getElementById('sidebar-gpio-badge');
+        if (!badge || !status) return;
+        const unlockedCount = Number(status.active_unlocked_count || 0);
+        const lockerCount = Number(status.locker_count || 12);
+        const gpioActive = Boolean(status.gpio_active || status.hardware_mode === 'raspberry_pi_gpio');
+        if (unlockedCount > 0) {
+          badge.textContent = `${unlockedCount} OPEN`;
+          badge.className = 'font-mono text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#F5A623] text-slate-950 shrink-0';
+        } else if (gpioActive) {
+          badge.textContent = 'PI GPIO';
+          badge.className = 'font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0';
+        } else {
+          badge.textContent = `${lockerCount} CH`;
+          badge.className = 'font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 shrink-0';
+        }
+      }
+
+      function setGpioDirtyFlag(isDirty) {
+        gpioConfigDirty = Boolean(isDirty);
+        const dirtyBadge = document.getElementById('gpio-dirty-badge');
+        if (dirtyBadge) {
+          dirtyBadge.classList.toggle('hidden', !gpioConfigDirty);
+        }
+      }
+
+      function showGpioErrorBanner(msg) {
+        const el = document.getElementById('gpio-error-banner');
+        if (!el) return;
+        if (!msg) {
+          el.classList.add('hidden');
+          el.innerHTML = '';
+          return;
+        }
+        el.innerHTML = `<p>▲ ${escapeHtml(msg)}</p>`;
+        el.classList.remove('hidden');
+      }
+
+      function showGpioSuccessBanner(msg) {
+        const el = document.getElementById('gpio-success-banner');
+        if (!el) return;
+        el.textContent = `✓ ${msg}`;
+        el.classList.remove('hidden');
+        if (gpioSuccessBannerTimer) clearTimeout(gpioSuccessBannerTimer);
+        gpioSuccessBannerTimer = setTimeout(() => {
+          el.classList.add('hidden');
+        }, 6000);
+      }
+
+      function computeDraftPinAssignments() {
+        const assignments = {};
+        const conflicts = [];
+        const bcmToPhys = getBcmToPhysicalMap();
+        if (!gpioDraftConfig) return { assignments, conflicts };
+
+        const registerPin = (bcmPin, item) => {
+          if (bcmPin === null || bcmPin === undefined || bcmPin === '') return;
+          const pinNum = Number(bcmPin);
+          if (!Number.isInteger(pinNum) || pinNum < 2 || pinNum > 27) return;
+          if (!assignments[pinNum]) assignments[pinNum] = [];
+          assignments[pinNum].push(item);
+        };
+
+        const lockers = Array.isArray(gpioDraftConfig.lockers) ? gpioDraftConfig.lockers : [];
+        lockers.forEach((locker, idx) => {
+          if (locker.enabled === false) return;
+          const id = locker.id || idx + 1;
+          registerPin(locker.bcm_pin, {
+            kind: 'locker',
+            id,
+            tag: `L${id}`,
+            label: locker.name || `Locker ${id}`,
+            compartment: locker.compartment || '',
+            chipCls: 'bg-[#003087] text-white',
+          });
+        });
+
+        const leds = gpioDraftConfig.leds || {};
+        GPIO_LED_CHANNEL_META.forEach((meta) => {
+          const ch = leds[meta.key];
+          if (!ch || ch.enabled === false) return;
+          registerPin(ch.bcm_pin, {
+            kind: 'led',
+            key: meta.key,
+            tag: meta.shortTag,
+            label: ch.label || meta.defaultLabel,
+            chipCls: meta.chipCls,
+          });
+        });
+
+        Object.keys(assignments).forEach((pinStr) => {
+          const list = assignments[pinStr];
+          if (list.length > 1) {
+            const pinNum = Number(pinStr);
+            const phys = bcmToPhys[pinNum] || bcmToPhys[String(pinNum)] || '?';
+            const names = list.map((x) => `${x.label} (${x.tag})`).join(' & ');
+            conflicts.push({
+              bcm: pinNum,
+              physical: phys,
+              channels: list,
+              message: `Duplicate BCM ${pinNum} (Pin ${phys}) assigned to ${names}`,
+            });
+          }
+        });
+
+        return { assignments, conflicts };
+      }
+
+      function getLivePinElectricalMap() {
+        const map = {};
+        if (!gpioLiveState) return map;
+        const lockers = Array.isArray(gpioLiveState.lockers) ? gpioLiveState.lockers : [];
+        lockers.forEach((l) => {
+          if (l.enabled !== false && l.bcm_pin !== null && l.bcm_pin !== undefined) {
+            map[Number(l.bcm_pin)] = {
+              electrical_state: l.electrical_state || 'LOW',
+              is_active: Boolean(l.is_unlocked),
+              kind: 'locker',
+            };
+          }
+        });
+        const leds = gpioLiveState.leds || {};
+        Object.keys(leds).forEach((k) => {
+          const ch = leds[k];
+          if (ch && ch.enabled !== false && ch.bcm_pin !== null && ch.bcm_pin !== undefined) {
+            map[Number(ch.bcm_pin)] = {
+              electrical_state: ch.electrical_state || 'LOW',
+              is_active: Boolean(ch.is_on),
+              kind: 'led',
+            };
+          }
+        });
+        return map;
+      }
+
+      function buildBcmPinSelectOptions(selectedPin) {
+        const bcmToPhys = getBcmToPhysicalMap();
+        const busWarnings = getBusWarningsMap();
+        const selVal =
+          selectedPin === null || selectedPin === undefined || selectedPin === ''
+            ? ''
+            : String(Number(selectedPin));
+        const options = [
+          `<option value="" ${selVal === '' ? 'selected' : ''}>Disabled (No Pin)</option>`,
+        ];
+        for (let bcm = 2; bcm <= 27; bcm++) {
+          const phys = bcmToPhys[bcm] || bcmToPhys[String(bcm)] || '?';
+          const warn = busWarnings[bcm] || busWarnings[String(bcm)] || '';
+          const label = warn ? `BCM ${bcm} · Pin ${phys} [${warn}]` : `BCM ${bcm} · Pin ${phys}`;
+          options.push(
+            `<option value="${bcm}" ${selVal === String(bcm) ? 'selected' : ''}>${escapeHtml(label)}</option>`
+          );
+        }
+        return options.join('');
+      }
+
+      function renderGpioTelemetryHeader() {
+        const status = (gpioLiveState && gpioLiveState.status) || {};
+        const gpioActive = Boolean(status.gpio_active || status.hardware_mode === 'raspberry_pi_gpio');
+        const unlockedCount = Number(status.active_unlocked_count || 0);
+        const lockerCount = Number(status.locker_count || (gpioLiveState && Array.isArray(gpioLiveState.lockers) ? gpioLiveState.lockers.length : 12));
+
+        const modeBadge = document.getElementById('gpio-mode-badge');
+        if (modeBadge) {
+          if (gpioActive) {
+            modeBadge.className =
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200';
+            modeBadge.textContent = '● Raspberry Pi GPIO Active';
+          } else {
+            modeBadge.className =
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200';
+            modeBadge.textContent = '○ Simulation Mode';
+          }
+        }
+
+        const boardEl = document.getElementById('gpio-stat-board');
+        const archEl = document.getElementById('gpio-stat-arch');
+        const factoryEl = document.getElementById('gpio-stat-factory');
+        const unlockedEl = document.getElementById('gpio-stat-unlocked');
+        const ledEl = document.getElementById('gpio-stat-led');
+        const noteEl = document.getElementById('gpio-status-note');
+
+        if (boardEl) {
+          const modelText = status.board_model || (gpioActive ? 'Raspberry Pi' : 'Non-Pi Host (Simulated)');
+          boardEl.textContent = modelText;
+          boardEl.title = modelText;
+        }
+        if (archEl) archEl.textContent = status.arch || '—';
+        if (factoryEl) factoryEl.textContent = status.pin_factory || (gpioActive ? 'gpiozero' : 'simulation');
+        if (unlockedEl) {
+          unlockedEl.textContent = `${unlockedCount} / ${lockerCount}`;
+          unlockedEl.className =
+            unlockedCount > 0
+              ? 'text-sm font-mono font-extrabold tabular-nums text-amber-700 mt-0.5'
+              : 'text-sm font-mono font-extrabold tabular-nums text-slate-900 mt-0.5';
+        }
+        if (ledEl) {
+          const lvl = (status.current_level || safetyStatus.level || 'SAFE').toUpperCase();
+          ledEl.textContent = lvl;
+          ledEl.className =
+            lvl === 'UNSAFE'
+              ? 'text-xs font-mono font-extrabold text-[#C8102E] mt-1 truncate'
+              : lvl === 'CAUTION'
+                ? 'text-xs font-mono font-extrabold text-amber-600 mt-1 truncate'
+                : 'text-xs font-mono font-extrabold text-[#16A34A] mt-1 truncate';
+        }
+        if (noteEl) {
+          const urlInfo = gpioLiveState && gpioLiveState.lan_url ? ` · LAN: ${gpioLiveState.lan_url}` : '';
+          noteEl.textContent = `${status.note || (gpioActive ? 'Physical Raspberry Pi GPIO active.' : 'Software simulation mode active.')}${urlInfo}`;
+        }
+
+        updateSidebarGpioBadge(status);
+      }
+
+      function renderGpioGlobalSettings() {
+        if (!gpioDraftConfig) return;
+        const modeEl = document.getElementById('gpio-global-mode');
+        const pulseEl = document.getElementById('gpio-global-pulse');
+        const autoBorrowEl = document.getElementById('gpio-global-auto-borrow');
+        const autoReturnEl = document.getElementById('gpio-global-auto-return');
+
+        if (modeEl) modeEl.value = gpioDraftConfig.mode || 'auto';
+        if (pulseEl) pulseEl.value = Number(gpioDraftConfig.default_unlock_seconds || 5);
+        if (autoBorrowEl) autoBorrowEl.checked = gpioDraftConfig.auto_unlock_on_borrow !== false;
+        if (autoReturnEl) autoReturnEl.checked = gpioDraftConfig.auto_unlock_on_return !== false;
+      }
+
+      function renderGpioHeaderDiagram() {
+        const container = document.getElementById('gpio-header-diagram');
+        if (!container) return;
+
+        const { assignments, conflicts } = computeDraftPinAssignments();
+        const electricalMap = getLivePinElectricalMap();
+        const busWarnings = getBusWarningsMap();
+
+        const renderSideCell = (pinDef, side) => {
+          const isLeft = side === 'left';
+          if (pinDef.type === '3v3' || pinDef.type === '5v' || pinDef.type === 'gnd' || pinDef.type === 'id') {
+            const styleMap = {
+              '3v3': {
+                row: 'bg-orange-50/90 border-orange-200 text-orange-950',
+                dot: 'bg-orange-500 border-orange-700 text-white',
+                pill: 'bg-orange-100 text-orange-900 border-orange-300',
+              },
+              '5v': {
+                row: 'bg-red-50/90 border-red-200 text-red-950',
+                dot: 'bg-red-600 border-red-800 text-white',
+                pill: 'bg-red-100 text-red-900 border-red-300',
+              },
+              gnd: {
+                row: 'bg-slate-100 border-slate-300 text-slate-800',
+                dot: 'bg-slate-800 border-slate-950 text-slate-100',
+                pill: 'bg-slate-800 text-slate-200 border-slate-700',
+              },
+              id: {
+                row: 'bg-slate-50 border-slate-200 text-slate-500',
+                dot: 'bg-slate-300 border-slate-400 text-slate-700',
+                pill: 'bg-slate-200 text-slate-600 border-slate-300',
+              },
+            };
+            const st = styleMap[pinDef.type];
+            const pinCircle = `<span class="w-6 h-6 rounded-full border text-[10px] font-mono font-extrabold flex items-center justify-center shrink-0 ${st.dot}">${pinDef.pin}</span>`;
+            const badge = `<span class="px-2 py-0.5 rounded border text-[10px] font-mono font-bold ${st.pill}">${escapeHtml(pinDef.label)}</span>`;
+            return isLeft
+              ? `<div class="flex items-center justify-between gap-2 px-2 py-1 rounded-lg border ${st.row}">${badge}<div class="flex items-center gap-1.5">${pinCircle}</div></div>`
+              : `<div class="flex items-center justify-between gap-2 px-2 py-1 rounded-lg border ${st.row}"><div class="flex items-center gap-1.5">${pinCircle}</div>${badge}</div>`;
+          }
+
+          const bcm = pinDef.bcm;
+          const assigned = assignments[bcm] || [];
+          const isConflict = assigned.length > 1;
+          const elec = electricalMap[bcm] || null;
+          const isHigh = elec && elec.electrical_state === 'HIGH';
+          const isActive = elec && elec.is_active;
+          const busFull = busWarnings[bcm] || busWarnings[String(bcm)] || '';
+          const busShort = pinDef.bus || '';
+
+          let rowCls = 'bg-white border-slate-200 text-slate-800';
+          if (isConflict) {
+            rowCls = 'bg-red-100 border-2 border-red-600 text-red-950 shadow-xs';
+          } else if (isActive) {
+            rowCls = 'bg-amber-50 border-amber-400 text-slate-900';
+          } else if (assigned.length === 1) {
+            rowCls = 'bg-blue-50/50 border-blue-200 text-slate-900';
+          }
+
+          const dotCls = isConflict
+            ? 'bg-red-600'
+            : elec
+              ? isHigh
+                ? 'bg-emerald-500'
+                : 'bg-slate-400'
+              : 'bg-slate-200';
+          const dotTitle = elec
+            ? `${elec.electrical_state} (${isHigh ? '3.3V' : '0V'})`
+            : 'Unassigned / Inactive';
+
+          const pinCircleCls = isConflict
+            ? 'bg-red-600 border-red-800 text-white'
+            : assigned.length > 0
+              ? 'bg-[#003087] border-[#002466] text-white'
+              : 'bg-slate-100 border-slate-300 text-slate-700';
+
+          const chipsHtml = isConflict
+            ? `<span class="px-1.5 py-0.5 rounded bg-red-600 text-white font-mono text-[9px] font-extrabold">CONFLICT: ${assigned.map((a) => escapeHtml(a.tag)).join('+')}</span>`
+            : assigned.length === 1
+              ? `<span class="px-1.5 py-0.5 rounded font-mono text-[9px] font-extrabold ${
+                  isActive && assigned[0].kind === 'locker' ? 'bg-amber-500 text-slate-950' : assigned[0].chipCls
+                }" title="${escapeHtml(assigned[0].label + (assigned[0].compartment ? ' · ' + assigned[0].compartment : ''))}">${escapeHtml(assigned[0].tag)}</span>`
+              : `<span class="text-[9px] font-mono text-slate-400">FREE</span>`;
+
+          const busHtml = busShort
+            ? `<span class="px-1 py-0.5 rounded bg-slate-100 border border-slate-300 text-[9px] font-mono font-bold text-slate-600" title="${escapeHtml(busFull || busShort)}">${escapeHtml(busShort)}</span>`
+            : '';
+
+          const stateDot = `<span class="inline-flex items-center gap-1 shrink-0" title="${escapeHtml(dotTitle)}"><span class="w-2.5 h-2.5 rounded-full ${dotCls} inline-block"></span><span class="text-[9px] font-mono ${isHigh ? 'text-emerald-700 font-bold' : 'text-slate-400'}">${elec ? (isHigh ? 'HI' : 'LO') : '--'}</span></span>`;
+
+          const bcmTag = `<span class="font-mono text-[10px] font-bold ${isConflict ? 'text-red-900' : 'text-slate-800'} whitespace-nowrap">BCM ${bcm}</span>`;
+          const pinCircle = `<span class="w-6 h-6 rounded-full border text-[10px] font-mono font-extrabold flex items-center justify-center shrink-0 ${pinCircleCls}" title="Physical Pin ${pinDef.pin}">${pinDef.pin}</span>`;
+
+          return isLeft
+            ? `<div class="flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg border ${rowCls}">
+                 <div class="flex items-center gap-1.5 min-w-0 flex-wrap">${chipsHtml}${busHtml}${stateDot}</div>
+                 <div class="flex items-center gap-1.5 shrink-0">${bcmTag}${pinCircle}</div>
+               </div>`
+            : `<div class="flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg border ${rowCls}">
+                 <div class="flex items-center gap-1.5 shrink-0">${pinCircle}${bcmTag}</div>
+                 <div class="flex items-center gap-1.5 min-w-0 flex-wrap justify-end">${stateDot}${busHtml}${chipsHtml}</div>
+               </div>`;
+        };
+
+        container.innerHTML = PI_J8_HEADER_ROWS.map(
+          ([leftPin, rightPin]) => `
+            <div class="grid grid-cols-2 gap-x-2 items-center">
+              ${renderSideCell(leftPin, 'left')}
+              ${renderSideCell(rightPin, 'right')}
+            </div>
+          `
+        ).join('');
+
+        // Reflect live client-side duplicate pin conflicts immediately before Save
+        if (conflicts.length > 0) {
+          showGpioErrorBanner(
+            `Pin conflict detected before saving: ${conflicts.map((c) => c.message).join(' | ')}`
+          );
+        } else {
+          const errEl = document.getElementById('gpio-error-banner');
+          if (errEl && errEl.textContent.includes('Pin conflict detected before saving:')) {
+            showGpioErrorBanner('');
+          }
+        }
+      }
+
+      function renderGpioLockersTable() {
+        const tbody = document.getElementById('gpio-lockers-tbody');
+        if (!tbody || !gpioDraftConfig) return;
+
+        const lockers = Array.isArray(gpioDraftConfig.lockers) ? gpioDraftConfig.lockers : [];
+        const liveLockersById = {};
+        if (gpioLiveState && Array.isArray(gpioLiveState.lockers)) {
+          gpioLiveState.lockers.forEach((l) => {
+            liveLockersById[l.id] = l;
+          });
+        }
+
+        const { assignments } = computeDraftPinAssignments();
+        const busWarnings = getBusWarningsMap();
+
+        tbody.innerHTML = lockers
+          .map((locker, idx) => {
+            const id = locker.id || idx + 1;
+            const live = liveLockersById[id] || {};
+            const pinNum =
+              locker.bcm_pin === null || locker.bcm_pin === undefined || locker.bcm_pin === ''
+                ? null
+                : Number(locker.bcm_pin);
+            const isEnabled = locker.enabled !== false;
+            const isConflict = isEnabled && pinNum !== null && (assignments[pinNum] || []).length > 1;
+            const busWarn = isEnabled && pinNum !== null ? busWarnings[pinNum] || busWarnings[String(pinNum)] || '' : '';
+
+            const elecState = live.electrical_state || (locker.active_high ? 'LOW' : 'HIGH');
+            const isHigh = elecState === 'HIGH';
+            const isUnlocked = Boolean(live.is_unlocked);
+            const activeHighStr = locker.active_high ? 'true' : 'false';
+
+            const stateHtml = !isEnabled
+              ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full font-mono text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">DISABLED</span>`
+              : `<div class="flex flex-wrap items-center gap-1">
+                   <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[10px] font-bold border ${
+                     isHigh
+                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                       : 'bg-slate-100 text-slate-700 border-slate-300'
+                   }">
+                     <span class="w-1.5 h-1.5 rounded-full ${isHigh ? 'bg-emerald-500' : 'bg-slate-400'}"></span>
+                     ${isHigh ? 'HIGH 3.3V' : 'LOW 0V'}
+                   </span>
+                   <span class="inline-flex items-center px-1.5 py-0.5 rounded font-mono text-[10px] font-extrabold border ${
+                     isUnlocked
+                       ? 'bg-amber-100 text-amber-900 border-amber-300'
+                       : 'bg-slate-50 text-slate-600 border-slate-200'
+                   }">
+                     ${isUnlocked ? 'UNLOCKED' : 'LOCKED'}
+                   </span>
+                 </div>`;
+
+            return `
+              <tr class="${isConflict ? 'bg-red-50/90' : 'hover:bg-slate-50/80'} align-middle">
+                <td class="py-2.5 px-3 whitespace-nowrap">
+                  <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 rounded font-mono text-[11px] font-extrabold ${
+                      isConflict ? 'bg-red-600 text-white' : 'bg-[#003087] text-white'
+                    }">L${id}</span>
+                    <span class="font-bold text-slate-900">${escapeHtml(locker.name || `Locker ${id}`)}</span>
+                  </div>
+                </td>
+                <td class="py-2.5 px-3 min-w-[165px]">
+                  <input
+                    type="text"
+                    value="${escapeHtml(locker.compartment || '')}"
+                    oninput="updateDraftLockerField(${idx}, 'compartment', this.value)"
+                    placeholder="e.g. 1st - 1st Section"
+                    class="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#003087] focus:bg-white"
+                  />
+                </td>
+                <td class="py-2.5 px-3 min-w-[195px]">
+                  <select
+                    onchange="updateDraftLockerField(${idx}, 'bcm_pin', this.value)"
+                    class="w-full px-2 py-1.5 text-[11px] font-mono bg-slate-50 border rounded-lg focus:outline-none focus:border-[#003087] focus:bg-white ${
+                      isConflict ? 'border-red-500 bg-red-50 text-red-900 font-bold' : 'border-slate-300 text-slate-800'
+                    }"
+                  >
+                    ${buildBcmPinSelectOptions(locker.bcm_pin)}
+                  </select>
+                  ${
+                    busWarn
+                      ? `<p class="text-[10px] font-mono text-amber-700 mt-0.5">▲ Shared bus: ${escapeHtml(busWarn)}</p>`
+                      : ''
+                  }
+                </td>
+                <td class="py-2.5 px-3 min-w-[195px]">
+                  <select
+                    onchange="updateDraftLockerField(${idx}, 'active_high', this.value === 'true')"
+                    class="w-full px-2 py-1.5 text-[11px] font-mono bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-[#003087] focus:bg-white"
+                  >
+                    <option value="false" ${activeHighStr === 'false' ? 'selected' : ''}>Active-LOW (Relay: LOW=Unlock)</option>
+                    <option value="true" ${activeHighStr === 'true' ? 'selected' : ''}>Active-HIGH (Direct: HIGH=Unlock)</option>
+                  </select>
+                </td>
+                <td class="py-2.5 px-2 w-20">
+                  <input
+                    type="number"
+                    min="0.5"
+                    max="60"
+                    step="0.5"
+                    value="${Number(locker.pulse_seconds || 5)}"
+                    oninput="updateDraftLockerField(${idx}, 'pulse_seconds', this.value)"
+                    class="w-16 px-2 py-1.5 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-[#003087] focus:bg-white tabular-nums"
+                  />
+                </td>
+                <td class="py-2.5 px-2 text-center">
+                  <input
+                    type="checkbox"
+                    ${isEnabled ? 'checked' : ''}
+                    onchange="updateDraftLockerField(${idx}, 'enabled', this.checked)"
+                    class="w-4 h-4 accent-[#003087] rounded cursor-pointer"
+                    aria-label="Enable Locker ${id}"
+                  />
+                </td>
+                <td class="py-2.5 px-3 whitespace-nowrap">
+                  ${stateHtml}
+                </td>
+                <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                  <div class="inline-flex items-center gap-1">
+                    <button
+                      type="button"
+                      onclick="testLockerPin(${id}, 'pulse')"
+                      class="px-2.5 py-1 text-[11px] font-mono font-bold text-white bg-[#003087] hover:bg-[#002466] rounded-md cursor-pointer"
+                    >
+                      Pulse
+                    </button>
+                    <button
+                      type="button"
+                      onclick="testLockerPin(${id}, 'high')"
+                      class="px-2 py-1 text-[11px] font-mono font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-md cursor-pointer"
+                    >
+                      HIGH
+                    </button>
+                    <button
+                      type="button"
+                      onclick="testLockerPin(${id}, 'low')"
+                      class="px-2 py-1 text-[11px] font-mono font-bold text-white bg-slate-700 hover:bg-slate-800 rounded-md cursor-pointer"
+                    >
+                      LOW
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          })
+          .join('');
+      }
+
+      function renderGpioLedsTable() {
+        const tbody = document.getElementById('gpio-leds-tbody');
+        if (!tbody || !gpioDraftConfig) return;
+
+        const draftLeds = gpioDraftConfig.leds || {};
+        const liveLeds = (gpioLiveState && gpioLiveState.leds) || {};
+        const { assignments } = computeDraftPinAssignments();
+
+        tbody.innerHTML = GPIO_LED_CHANNEL_META.map((meta) => {
+          const ch = draftLeds[meta.key] || { label: meta.defaultLabel, bcm_pin: null, active_high: true, enabled: false };
+          const live = liveLeds[meta.key] || {};
+          const pinNum =
+            ch.bcm_pin === null || ch.bcm_pin === undefined || ch.bcm_pin === ''
+              ? null
+              : Number(ch.bcm_pin);
+          const isEnabled = ch.enabled !== false;
+          const isConflict = isEnabled && pinNum !== null && (assignments[pinNum] || []).length > 1;
+          const isHigh = (live.electrical_state || 'LOW') === 'HIGH';
+          const isOn = Boolean(live.is_on);
+          const activeHighStr = ch.active_high === false ? 'false' : 'true';
+
+          return `
+            <tr class="${isConflict ? 'bg-red-50/90' : 'hover:bg-slate-50/80'} align-middle">
+              <td class="py-2.5 px-3 whitespace-nowrap">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0 ${meta.dotCls}"></span>
+                  <div>
+                    <p class="font-bold text-slate-900 leading-tight">${escapeHtml(ch.label || meta.defaultLabel)}</p>
+                    <p class="font-mono text-[10px] text-slate-400">${escapeHtml(meta.shortTag)}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="py-2.5 px-2 min-w-[140px]">
+                <select
+                  onchange="updateDraftLedField('${meta.key}', 'bcm_pin', this.value)"
+                  class="w-full px-1.5 py-1 text-[11px] font-mono bg-slate-50 border rounded-md focus:outline-none focus:border-[#003087] ${
+                    isConflict ? 'border-red-500 bg-red-50 text-red-900 font-bold' : 'border-slate-300 text-slate-800'
+                  }"
+                >
+                  ${buildBcmPinSelectOptions(ch.bcm_pin)}
+                </select>
+              </td>
+              <td class="py-2.5 px-2 min-w-[105px]">
+                <select
+                  onchange="updateDraftLedField('${meta.key}', 'active_high', this.value === 'true')"
+                  class="w-full px-1.5 py-1 text-[10px] font-mono bg-slate-50 border border-slate-300 rounded-md focus:outline-none focus:border-[#003087]"
+                >
+                  <option value="true" ${activeHighStr === 'true' ? 'selected' : ''}>Active-HIGH</option>
+                  <option value="false" ${activeHighStr === 'false' ? 'selected' : ''}>Active-LOW</option>
+                </select>
+              </td>
+              <td class="py-2.5 px-2 text-center">
+                <input
+                  type="checkbox"
+                  ${isEnabled ? 'checked' : ''}
+                  onchange="updateDraftLedField('${meta.key}', 'enabled', this.checked)"
+                  class="w-4 h-4 accent-[#003087] rounded cursor-pointer"
+                  aria-label="Enable ${escapeHtml(meta.defaultLabel)}"
+                />
+              </td>
+              <td class="py-2.5 px-2 whitespace-nowrap">
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[10px] font-bold border ${
+                  !isEnabled
+                    ? 'bg-slate-100 text-slate-400 border-slate-200'
+                    : isHigh
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-slate-100 text-slate-700 border-slate-300'
+                }">
+                  ${!isEnabled ? 'OFF' : `${isHigh ? 'HIGH' : 'LOW'}${isOn ? ' · ON' : ''}`}
+                </span>
+              </td>
+              <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                <button
+                  type="button"
+                  onclick="testLedChannel('${meta.key}', 'pulse', 1)"
+                  class="px-2.5 py-1 text-[10px] font-mono font-bold text-white bg-[#003087] hover:bg-[#002466] rounded-md cursor-pointer"
+                >
+                  Test (1s)
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      function renderGpioDiagnosticLog() {
+        const container = document.getElementById('gpio-diag-log');
+        const countEl = document.getElementById('gpio-diag-count');
+        if (!container) return;
+
+        const rawLog =
+          gpioLiveState && Array.isArray(gpioLiveState.diagnostic_log)
+            ? gpioLiveState.diagnostic_log.slice()
+            : [];
+
+        // Ensure newest entries render at the top, showing the last 25 transitions
+        let ordered = rawLog;
+        if (ordered.length > 1) {
+          const firstTs = String(ordered[0].timestamp || '');
+          const lastTs = String(ordered[ordered.length - 1].timestamp || '');
+          if (firstTs && lastTs && firstTs < lastTs) {
+            ordered = ordered.slice(-25).reverse();
+          } else {
+            ordered = ordered.slice(0, 25);
+          }
+        }
+
+        if (countEl) {
+          countEl.textContent = `${ordered.length} event${ordered.length === 1 ? '' : 's'}`;
+        }
+
+        if (ordered.length === 0) {
+          container.innerHTML = '<p class="py-6 text-center text-slate-500">No GPIO transitions logged yet.</p>';
+          return;
+        }
+
+        container.innerHTML = ordered
+          .map((entry) => {
+            const d = entry.timestamp ? new Date(entry.timestamp) : null;
+            const timeStr =
+              d && !isNaN(d.getTime())
+                ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+                : String(entry.timestamp || '—');
+            const elec = String(entry.electrical_state || '—').toUpperCase();
+            const elecCls = elec === 'HIGH' ? 'text-emerald-400 font-bold' : 'text-slate-400';
+            const logical = String(entry.logical_state || '—');
+            const logicalCls =
+              logical.toUpperCase().includes('UNLOCK') || logical.toUpperCase() === 'ON'
+                ? 'text-amber-300 font-bold'
+                : 'text-slate-300';
+            const bcmLabel =
+              entry.bcm_pin !== null && entry.bcm_pin !== undefined && entry.bcm_pin !== ''
+                ? `BCM ${entry.bcm_pin}`
+                : '—';
+
+            return `
+              <div class="py-1.5 grid grid-cols-12 gap-2 items-center hover:bg-slate-900/70">
+                <span class="col-span-2 text-slate-400 truncate">${escapeHtml(timeStr)}</span>
+                <span class="col-span-2 text-sky-300 font-bold truncate">${escapeHtml(entry.channel || '—')}</span>
+                <span class="col-span-1 text-slate-300 truncate">${escapeHtml(bcmLabel)}</span>
+                <span class="col-span-2 text-white truncate">${escapeHtml(entry.action || '—')}</span>
+                <span class="col-span-1 ${elecCls} truncate">${escapeHtml(elec)}</span>
+                <span class="col-span-2 ${logicalCls} truncate">${escapeHtml(logical)}</span>
+                <span class="col-span-2 text-right text-slate-400 truncate">${escapeHtml(entry.source || '—')}</span>
+              </div>
+            `;
+          })
+          .join('');
+      }
+
+      function renderAllGpioConsole() {
+        renderGpioTelemetryHeader();
+        renderGpioGlobalSettings();
+        renderGpioHeaderDiagram();
+        renderGpioLockersTable();
+        renderGpioLedsTable();
+        renderGpioDiagnosticLog();
+      }
+
+      function applyGpioStatePayload(payload, { preserveDraftIfDirty = false, resetDirty = false } = {}) {
+        if (!payload) return;
+        const state = payload.gpio ? payload.gpio : payload;
+        gpioLiveState = {
+          ...state,
+          lan_url: payload.lan_url || (gpioLiveState && gpioLiveState.lan_url) || '',
+          kiosk_url: payload.kiosk_url || (gpioLiveState && gpioLiveState.kiosk_url) || '',
+          admin_url: payload.admin_url || (gpioLiveState && gpioLiveState.admin_url) || '',
+        };
+
+        if (!gpioDraftConfig || !preserveDraftIfDirty || !gpioConfigDirty || resetDirty) {
+          if (state.config) {
+            gpioDraftConfig = cloneGpioConfig(state.config);
+          }
+          if (resetDirty || !preserveDraftIfDirty) {
+            setGpioDirtyFlag(false);
+          }
+        }
+
+        renderAllGpioConsole();
+      }
+
+      async function fetchGpioConfig({ silent = false, preserveDraftIfDirty = false } = {}) {
+        if (!getAdminToken()) return;
+        try {
+          const res = await adminFetch('/api/admin/gpio-config');
+          if (!res || res.status === 401) return;
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            if (!silent) {
+              showGpioErrorBanner(data.error || 'Could not load Raspberry Pi GPIO configuration.');
+            }
+            return;
+          }
+          applyGpioStatePayload(data, { preserveDraftIfDirty });
+        } catch (err) {
+          if (!silent) {
+            showGpioErrorBanner('Network error while fetching GPIO configuration.');
+          }
+          console.error(err);
+        }
+      }
+
+      function onGpioGlobalSettingChange() {
+        if (!gpioDraftConfig) return;
+        const modeEl = document.getElementById('gpio-global-mode');
+        const pulseEl = document.getElementById('gpio-global-pulse');
+        const autoBorrowEl = document.getElementById('gpio-global-auto-borrow');
+        const autoReturnEl = document.getElementById('gpio-global-auto-return');
+
+        if (modeEl) gpioDraftConfig.mode = modeEl.value;
+        if (pulseEl) {
+          const parsed = parseFloat(pulseEl.value);
+          if (!isNaN(parsed)) gpioDraftConfig.default_unlock_seconds = parsed;
+        }
+        if (autoBorrowEl) gpioDraftConfig.auto_unlock_on_borrow = Boolean(autoBorrowEl.checked);
+        if (autoReturnEl) gpioDraftConfig.auto_unlock_on_return = Boolean(autoReturnEl.checked);
+        setGpioDirtyFlag(true);
+      }
+
+      function updateDraftLockerField(idx, field, value) {
+        if (!gpioDraftConfig || !Array.isArray(gpioDraftConfig.lockers) || !gpioDraftConfig.lockers[idx]) return;
+        const locker = gpioDraftConfig.lockers[idx];
+
+        if (field === 'bcm_pin') {
+          locker.bcm_pin = value === '' ? null : Number(value);
+          setGpioDirtyFlag(true);
+          renderGpioHeaderDiagram();
+          renderGpioLockersTable();
+          renderGpioLedsTable();
+        } else if (field === 'active_high') {
+          locker.active_high = Boolean(value);
+          setGpioDirtyFlag(true);
+        } else if (field === 'enabled') {
+          locker.enabled = Boolean(value);
+          setGpioDirtyFlag(true);
+          renderGpioHeaderDiagram();
+          renderGpioLockersTable();
+          renderGpioLedsTable();
+        } else if (field === 'pulse_seconds') {
+          const parsed = parseFloat(value);
+          if (!isNaN(parsed)) locker.pulse_seconds = parsed;
+          setGpioDirtyFlag(true);
+        } else if (field === 'compartment') {
+          locker.compartment = value;
+          setGpioDirtyFlag(true);
+          renderGpioHeaderDiagram();
+        }
+      }
+
+      function updateDraftLedField(channelKey, field, value) {
+        if (!gpioDraftConfig || !gpioDraftConfig.leds || !gpioDraftConfig.leds[channelKey]) return;
+        const ch = gpioDraftConfig.leds[channelKey];
+
+        if (field === 'bcm_pin') {
+          ch.bcm_pin = value === '' ? null : Number(value);
+          setGpioDirtyFlag(true);
+          renderGpioHeaderDiagram();
+          renderGpioLockersTable();
+          renderGpioLedsTable();
+        } else if (field === 'active_high') {
+          ch.active_high = Boolean(value);
+          setGpioDirtyFlag(true);
+        } else if (field === 'enabled') {
+          ch.enabled = Boolean(value);
+          setGpioDirtyFlag(true);
+          renderGpioHeaderDiagram();
+          renderGpioLockersTable();
+          renderGpioLedsTable();
+        }
+      }
+
+      async function saveAndApplyGpioConfig() {
+        if (!gpioDraftConfig) return;
+        showGpioErrorBanner('');
+        const saveBtn = document.getElementById('gpio-save-btn');
+        if (saveBtn) {
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Applying Live...';
+        }
+        try {
+          const res = await adminFetch('/api/admin/gpio-config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ config: gpioDraftConfig }),
+          });
+          if (!res || res.status === 401) return;
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showGpioErrorBanner(data.error || 'GPIO configuration rejected — check for duplicate or invalid BCM pins.');
+            return;
+          }
+          applyGpioStatePayload(data, { resetDirty: true });
+          showGpioSuccessBanner('GPIO configuration saved to SQLite and applied live to hardware controller.');
+          fetchHardwareStatus();
+        } catch {
+          showGpioErrorBanner('Network error while saving GPIO configuration.');
+        } finally {
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save & Apply Live';
+          }
+        }
+      }
+
+      async function resetGpioDefaults() {
+        if (!window.confirm('Reset all 12 locker pins and 4 LED/Buzzer channels to Raspberry Pi 2/3 conflict-free defaults?')) {
+          return;
+        }
+        showGpioErrorBanner('');
+        try {
+          const res = await adminFetch('/api/admin/gpio-config/reset', { method: 'POST' });
+          if (!res || res.status === 401) return;
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showGpioErrorBanner(data.error || 'Could not reset GPIO configuration.');
+            return;
+          }
+          applyGpioStatePayload(data, { resetDirty: true });
+          showGpioSuccessBanner('Restored Raspberry Pi 2/3 conflict-free 16-pin defaults and applied live.');
+          fetchHardwareStatus();
+        } catch {
+          showGpioErrorBanner('Network error while resetting GPIO defaults.');
+        }
+      }
+
+      function schedulePostPulseGpioRefresh(seconds) {
+        const delayMs = Math.max(1200, Math.round((Number(seconds || 5) + 0.6) * 1000));
+        if (gpioPulseRefreshTimer) clearTimeout(gpioPulseRefreshTimer);
+        gpioPulseRefreshTimer = setTimeout(() => {
+          gpioPulseRefreshTimer = null;
+          const gpioSec = document.getElementById('tab-gpio-section');
+          if (gpioSec && !gpioSec.classList.contains('hidden')) {
+            fetchGpioConfig({ preserveDraftIfDirty: true });
+          } else {
+            fetchGpioConfig({ silent: true, preserveDraftIfDirty: true });
+          }
+        }, delayMs);
+      }
+
+      async function testLockerPin(lockerId, action) {
+        showGpioErrorBanner('');
+        const lockerCfg =
+          gpioDraftConfig && Array.isArray(gpioDraftConfig.lockers)
+            ? gpioDraftConfig.lockers.find((l) => Number(l.id) === Number(lockerId))
+            : null;
+        const body = { locker_id: Number(lockerId), action };
+        if (action === 'pulse' && lockerCfg && lockerCfg.pulse_seconds) {
+          body.duration_seconds = Number(lockerCfg.pulse_seconds);
+        }
+
+        try {
+          const res = await adminFetch('/api/admin/gpio/test-locker', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (!res || res.status === 401) return;
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showGpioErrorBanner(data.error || `Failed to run '${action}' on Locker ${lockerId}.`);
+            return;
+          }
+          applyGpioStatePayload(data, { preserveDraftIfDirty: true });
+          const lr = data.locker || {};
+          showGpioSuccessBanner(
+            `Locker ${lockerId} (BCM ${lr.bcm_pin ?? '—'}): ${action.toUpperCase()} executed → ${lr.electrical_state || ''} (${lr.is_unlocked ? 'UNLOCKED' : 'LOCKED'}).`
+          );
+          if (action === 'pulse') {
+            schedulePostPulseGpioRefresh(body.duration_seconds || lr.pulse_seconds || 5);
+          }
+        } catch {
+          showGpioErrorBanner(`Network error while testing Locker ${lockerId}.`);
+        }
+      }
+
+      async function testLedChannel(channel, action = 'pulse', durationSeconds = 1) {
+        showGpioErrorBanner('');
+        try {
+          const res = await adminFetch('/api/admin/gpio/test-led', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel, action, duration_seconds: durationSeconds }),
+          });
+          if (!res || res.status === 401) return;
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showGpioErrorBanner(data.error || `Failed to test '${channel}' channel.`);
+            return;
+          }
+          applyGpioStatePayload(data, { preserveDraftIfDirty: true });
+          const chRes = data.result || {};
+          showGpioSuccessBanner(
+            `${channel.toUpperCase()} channel (BCM ${chRes.bcm_pin ?? '—'}): ${action.toUpperCase()} (${durationSeconds}s) executed.`
+          );
+          if (action === 'pulse') {
+            schedulePostPulseGpioRefresh(durationSeconds);
+          }
+        } catch {
+          showGpioErrorBanner(`Network error while testing ${channel} channel.`);
+        }
+      }
+
+      async function emergencyUnlockAllLockers() {
+        if (!window.confirm('EMERGENCY UNLOCK ALL: Energize all enabled locker locks for 5 seconds?')) {
+          return;
+        }
+        showGpioErrorBanner('');
+        try {
+          const res = await adminFetch('/api/admin/gpio/unlock-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ duration_seconds: 5 }),
+          });
+          if (!res || res.status === 401) return;
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showGpioErrorBanner(data.error || 'Could not unlock all lockers.');
+            return;
+          }
+          applyGpioStatePayload(data, { preserveDraftIfDirty: true });
+          showGpioSuccessBanner('Emergency Unlock All triggered (5s auto-relock pulse active on enabled lockers).');
+          schedulePostPulseGpioRefresh(5);
+        } catch {
+          showGpioErrorBanner('Network error while executing Emergency Unlock All.');
+        }
+      }
+
+      async function forceRelockAllLockers() {
+        showGpioErrorBanner('');
+        try {
+          const res = await adminFetch('/api/admin/gpio/lock-all', { method: 'POST' });
+          if (!res || res.status === 401) return;
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showGpioErrorBanner(data.error || 'Could not relock all lockers.');
+            return;
+          }
+          applyGpioStatePayload(data, { preserveDraftIfDirty: true });
+          showGpioSuccessBanner('Force Relock All completed — all enabled locker relays returned to LOCKED state.');
+        } catch {
+          showGpioErrorBanner('Network error while forcing relock on all lockers.');
+        }
+      }
+
+      function exportGpioConfigJson() {
+        if (!gpioDraftConfig) return;
+        const jsonStr = JSON.stringify(gpioDraftConfig, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'labguard_gpio_config.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showGpioSuccessBanner('Exported labguard_gpio_config.json.');
+      }
+
+      function importGpioConfigJson(event) {
+        const input = event && event.target;
+        const file = input && input.files && input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(String(reader.result || '{}'));
+            const importedCfg = parsed && parsed.config ? parsed.config : parsed;
+            if (!importedCfg || !Array.isArray(importedCfg.lockers) || typeof importedCfg.leds !== 'object') {
+              showGpioErrorBanner('Invalid GPIO JSON file — expected "lockers" array and "leds" object.');
+              return;
+            }
+            gpioDraftConfig = cloneGpioConfig(importedCfg);
+            setGpioDirtyFlag(true);
+            showGpioErrorBanner('');
+            renderAllGpioConsole();
+            showGpioSuccessBanner(
+              `Loaded "${file.name}" into the GPIO editor. Review the 40-pin map and click "Save & Apply Live" to activate.`
+            );
+          } catch {
+            showGpioErrorBanner('Could not parse JSON file. Ensure it is valid LabGuard+ GPIO configuration JSON.');
+          } finally {
+            if (input) input.value = '';
+          }
+        };
+        reader.readAsText(file);
       }
 
       async function fetchHardwareStatus() {
@@ -2479,17 +3957,31 @@ Inspect apparatus condition before starting the experiment</textarea>
 
           ws.onmessage = (evt) => {
             if (!getAdminToken()) return;
+            let payload = null;
             let eventName = '';
             try {
-              const payload = JSON.parse(evt.data);
+              payload = JSON.parse(evt.data);
               eventName = payload && payload.event ? payload.event : '';
             } catch {
+              payload = null;
               eventName = '';
             }
 
-            if (eventName === 'accounts_updated' || eventName === 'data_updated' || !eventName) {
+            if (eventName === 'gpio_updated') {
+              if (payload && payload.hardware) {
+                updateSidebarGpioBadge(payload.hardware);
+              }
+              const gpioSec = document.getElementById('tab-gpio-section');
+              if (gpioSec && !gpioSec.classList.contains('hidden')) {
+                fetchGpioConfig({ preserveDraftIfDirty: true });
+              }
+            } else if (eventName === 'accounts_updated' || eventName === 'data_updated' || !eventName) {
               fetchAdminState();
               fetchAdminStudents();
+              const gpioSec = document.getElementById('tab-gpio-section');
+              if (gpioSec && !gpioSec.classList.contains('hidden')) {
+                fetchGpioConfig({ preserveDraftIfDirty: true });
+              }
             } else if (eventName === 'state_sync') {
               fetchAdminState();
             }
