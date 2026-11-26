@@ -564,28 +564,63 @@ Once installed, LabGuard+ requires **zero internet access**. If your school labo
 2. Connect the Raspberry Pi (Wi-Fi or Ethernet cable), the Teacher/Admin PC, and student phones to that router's Wi-Fi.
 3. Students scan the Kiosk QR codes and everything runs instantaneously over local Wi-Fi!
 
-#### Option 2: Built-In Raspberry Pi Wi-Fi Hotspot (Pi 3B / 3B+ / 4B / 5 on Bookworm/Trixie)
-Turn the Raspberry Pi itself into a standalone offline Wi-Fi access point using `nmcli`:
+#### Option 2: Built-In Raspberry Pi Wi-Fi Hotspot (Pi 3B / 3B+ / 4B / 5 — Tested on Pi 3B!)
+Turn the Raspberry Pi itself into a standalone **2.4 GHz offline Wi-Fi access point** (`LabGuard-Station`).
 
-```bash
-sudo nmcli device wifi hotspot ifname wlan0 ssid LabGuard-Station password labguard2026
-```
+> [!NOTE]
+> **Why we use these explicit `nmcli` commands instead of `nmcli device wifi hotspot`:**
+> On **Raspberry Pi 3B**, the built-in Wi-Fi chip (`brcmfmac`) only supports 2.4 GHz and often fails NetworkManager's shortcut with `activation failed: 802.1X supplicant took too long to respond` (due to WPA3/PMF) or drops Apple iPad/iPhone WPA2 handshakes when Wi-Fi Power Save is enabled. The commands below avoid both issues cleanly.
 
-Then lock QR codes to NetworkManager's default hotspot IP (`10.42.0.1`) in `/etc/default/labguard`:
+1. **Create & activate the Pi 3B–safe 2.4 GHz hotspot** (default password: `labguard2026`):
+   ```bash
+   # Set Wi-Fi country (PH) and unblock radio
+   sudo raspi-config nonint do_wifi_country PH
+   sudo rfkill unblock wifi
 
-```bash
-sudo nano /etc/default/labguard
-# Set:
-#   APP_URL=http://10.42.0.1:5000
-```
+   # Remove any broken Hotspot profile and reset wpa_supplicant
+   sudo nmcli connection delete Hotspot 2>/dev/null || true
+   sudo systemctl restart wpa_supplicant NetworkManager
+   sleep 3
 
-Restart LabGuard+:
+   # Create a 2.4 GHz WPA2 Hotspot with Power Save & PMF disabled (Pi 3B + Apple friendly)
+   sudo nmcli con add type wifi ifname wlan0 mode ap con-name Hotspot ssid LabGuard-Station autoconnect yes
+   sudo nmcli con modify Hotspot connection.autoconnect-priority 100
+   sudo nmcli con modify Hotspot 802-11-wireless.band bg 802-11-wireless.channel 6 802-11-wireless.powersave 2
+   sudo nmcli con modify Hotspot ipv4.method shared ipv4.addresses 10.42.0.1/24
+   sudo nmcli con modify Hotspot wifi-sec.key-mgmt wpa-psk wifi-sec.proto rsn wifi-sec.pairwise ccmp wifi-sec.group ccmp wifi-sec.pmf 1 wifi-sec.psk "labguard2026"
 
-```bash
-sudo systemctl restart labguard
-```
+   # Disable live Wi-Fi power save, disconnect client Wi-Fi, and start Hotspot
+   sudo iw dev wlan0 set power_save off
+   sudo nmcli device disconnect wlan0 2>/dev/null || true
+   sudo nmcli con up Hotspot
+   ```
 
-Students connect their smartphones to Wi-Fi **`LabGuard-Station`** (password `labguard2026`) and scan QR codes with zero internet needed!
+2. **Verify the hotspot IP (`10.42.0.1/24`)**:
+   ```bash
+   ip -4 addr show wlan0
+   ```
+   Confirm `inet 10.42.0.1/24` is listed. *(If `nmcli con up Hotspot` still fails on the first switch from Client → AP mode on Pi 3B, simply run `sudo reboot` — it will start cleanly on boot thanks to `autoconnect-priority 100`.)*
+
+3. **Lock QR codes to `http://10.42.0.1:5000` and restart LabGuard+**:
+   ```bash
+   sudo sed -i 's|^APP_URL=.*|APP_URL=http://10.42.0.1:5000|' /etc/default/labguard
+   sudo systemctl restart labguard
+   curl -s http://localhost:5000/api/health
+   ```
+   Confirm `"status": "ok"` and `"lan_url": "http://10.42.0.1:5000"`, then reboot back into Kiosk mode (`sudo reboot`).
+
+4. **Optional — Make `LabGuard-Station` Open (No Wi-Fi Password) for iPads & 1-Tap Student Access:**
+   If an **iPad or iPhone** still reports *"Incorrect Password"* on Pi 3B's built-in `wpa_supplicant` AP — or if you want students to join in one tap without typing a Wi-Fi password — you can safely remove the Wi-Fi password. Because `LabGuard-Station` has **no internet access** and **all Student/Admin actions still require account login passwords inside LabGuard+**, an open offline kiosk SSID is safe and avoids Apple WPA2 handshake quirks:
+   ```bash
+   sudo nmcli con modify Hotspot remove 802-11-wireless-security
+   sudo nmcli con down Hotspot && sudo nmcli con up Hotspot
+   ```
+   *(On iPad/iPhone: tap **Forget This Network** on `LabGuard-Station` first, then tap `LabGuard-Station` again to connect!)*
+
+5. **Connecting Phones / iPads / Teacher Laptop to `LabGuard-Station`:**
+   - Connect to Wi-Fi **`LabGuard-Station`** (password **`labguard2026`**, or no password if you used Step 4).
+   - When your phone/iPad warns *"No internet connection"*, tap **Keep / Stay connected** (and turn **OFF Mobile Data** while scanning QR codes if the browser tries to route over cellular).
+   - Open Admin Console on the teacher laptop/tablet at **`http://10.42.0.1:5000/admin`**.
 
 ---
 
@@ -620,8 +655,34 @@ npm run build:css
 
 ---
 
-### Everyday Raspberry Pi Service & Maintenance Commands
+### Everyday Raspberry Pi Power-Off, Kiosk Exit & Maintenance Commands
 
+#### Safely Turning Off (Shutting Down) the Raspberry Pi
+> [!CAUTION]
+> **NEVER just pull the power cable out while the Raspberry Pi is running!** Sudden power loss can corrupt the microSD card or SQLite database (`/var/lib/labguard/labguard.db`). Always shut down cleanly first:
+
+- **Method 1 — From Fullscreen Kiosk Mode (USB Keyboard plugged in):**
+  1. Press **`Alt + F4`** (or **`Ctrl + W`**) to close the fullscreen Kiosk window and reveal the Desktop.
+  2. Either click the **Raspberry icon (top-left) → Logout → Shutdown**, **OR** press **`Ctrl + Alt + T`** to open a Terminal and run:
+     ```bash
+     sudo shutdown -h now
+     ```
+- **Method 2 — Remotely from a Teacher Laptop / Phone (No Keyboard Needed!):**
+  Connect to `LabGuard-Station` (or your lab Wi-Fi) and run SSH from any terminal:
+  ```bash
+  ssh pi@10.42.0.1 "sudo shutdown -h now"
+  # (Or use labguard.local if on a lab router: ssh pi@labguard.local "sudo shutdown -h now")
+  ```
+- **When is it safe to unplug the power cord?**
+  Wait **10–15 seconds** until the screen goes completely dark and the **green ACT LED** on the Raspberry Pi stops blinking (the solid red PWR LED stays lit until you unplug it). Once the green LED is completely off, unplug the 5V Pi power cable (and turn off the 12V locker PSU if connected).
+
+#### Exiting Fullscreen Kiosk Mode Back to Terminal / Desktop
+- **`Alt + F4`** or **`Ctrl + W`** — Closes fullscreen Chromium Kiosk to reveal the Desktop.
+- **`Ctrl + Alt + T`** — Opens a Terminal window directly on the Desktop.
+- **`Ctrl + Alt + F1`** — Switches to a full-screen Linux text console if the desktop shortcut doesn't respond (log in as `pi`, run your commands, then **`Ctrl + Alt + F7`** or **`sudo reboot`** to return to the Kiosk).
+- **From another PC (SSH)**: `ssh pi@10.42.0.1` (when on `LabGuard-Station` hotspot) or `ssh pi@labguard.local` (when on a regular router).
+
+#### Service Logs, Updates & Resets
 ```bash
 # Check backend status, restart after edits, or stop server
 sudo systemctl status labguard
@@ -632,7 +693,6 @@ sudo systemctl stop labguard
 journalctl -u labguard -f
 ```
 
-- **Exit Fullscreen Kiosk on the Pi**: Plug in a USB keyboard and press **`Alt + F4`** or **`Ctrl + W`** to close Chromium. Press **`Ctrl + Alt + T`** to open a terminal, or SSH in from a PC (`ssh pi@labguard.local`).
 - **Update LabGuard+ (Preserves Database, ID Photos & Settings)**:
   ```bash
   cd ~/LabGuard
@@ -709,6 +769,22 @@ Run `raspi-config` and disable display blanking system-wide, then reboot:
 sudo raspi-config
 ```
 Navigate to: **`2 Display Options`** → **`D4 Screen Blanking`** → select **`No`** → **`Finish`** → **`sudo reboot`**.
+
+#### 7. Pi 3B Hotspot fails (`802.1X supplicant took too long to respond`) or iPad/iPhone says *"Incorrect Password"*
+- **`802.1X supplicant took too long to respond`**: Raspberry Pi 3B's Wi-Fi chip only supports **2.4 GHz (`bg`)** and chokes on NetworkManager's default WPA3/PMF shortcut. Follow the exact **Option 2** commands above (setting country `PH`, `band bg`, `channel 6`, `pmf 1`, and `powersave 2`).
+- **iPad / iPhone says *"Incorrect Password"* even with `labguard2026`**:
+  1. Run `sudo iw dev wlan0 set power_save off && sudo nmcli con modify Hotspot 802-11-wireless.powersave 2 && sudo nmcli con down Hotspot && sudo nmcli con up Hotspot`.
+  2. On the iPad/iPhone, tap **`(i)` → Forget This Network** before reconnecting.
+  3. If Apple devices still reject Pi 3B's built-in WPA2 AP handshake, switch `LabGuard-Station` to an **Open (no-password) offline Wi-Fi** (safe because it has no internet and LabGuard+ enforces Student/Admin account logins inside the app):
+     ```bash
+     sudo nmcli con modify Hotspot remove 802-11-wireless-security
+     sudo nmcli con down Hotspot && sudo nmcli con up Hotspot
+     ```
+     Then tap **Forget This Network** on the iPad and reconnect with no password.
+
+#### 8. Setup hiccups: Mac can't see the microSD card, or `pip` prints a red `types-flask-migrate` warning
+- **macOS doesn't show the microSD card in Raspberry Pi Imager**: Check the physical **LOCK** switch on the SD adapter (slide toward the gold pins), plug the reader directly into the Mac instead of an unpowered USB hub, and check Terminal (`diskutil list`) or **Disk Utility → View → Show All Devices** to confirm macOS sees the card hardware.
+- **Red `pip` warning (`types-flask-migrate 4.0 requires Flask-SQLAlchemy>=3.0.1`) during `setup_raspberry_pi.sh`**: **Harmless — you can safely ignore it!** That is a pre-installed Raspberry Pi OS typing stub; LabGuard+ uses pure SQLite3 (not SQLAlchemy), and Flask, `flask-sock`, and `qrcode` still install right below that message.
 
 ---
 
